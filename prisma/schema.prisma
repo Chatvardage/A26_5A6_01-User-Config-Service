@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Theme {
+  sombre
+  clair
+}
+
+enum Langue {
+  fr
+  en
+}
+
+enum StatutPresence {
+  enLigne
+  horsLigne
+}
+
+enum ModeNotification {
+  systeme
+  discret
+  aucune
+}
+
+model ConfigUtilisateur {
+  idUtilisateur    String            @id
+  alias            String?
+  theme            Theme             @default(sombre)
+  langue           Langue            @default(fr)
+  statutPresence   StatutPresence    @default(horsLigne)
+  vuLaDerniereFois DateTime?
+  modeNotification ModeNotification  @default(systeme)
+  creeLe           DateTime          @default(now())
+  misAJourLe       DateTime          @updatedAt
+}
