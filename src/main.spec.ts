@@ -42,11 +42,14 @@ describe('bootstrap', () => {
 
   it('configure et démarre sur PORT', async () => {
     process.env.PORT = '3999';
+    process.env.CORS_ORIGINS = 'http://exemple.test,http://autre.test';
     await import('./main');
     await new Promise<void>((resolve) => setImmediate(resolve));
 
     expect(app.setGlobalPrefix).toHaveBeenCalledWith('api');
-    expect(app.enableCors).toHaveBeenCalled();
+    expect(app.enableCors).toHaveBeenCalledWith({
+      origin: ['http://exemple.test', 'http://autre.test'],
+    });
     expect(app.useGlobalPipes).toHaveBeenCalled();
     expect(builder.setTitle).toHaveBeenCalledWith(
       'Chatvardage User Config Service',
@@ -58,8 +61,20 @@ describe('bootstrap', () => {
     expect(listen).toHaveBeenCalledWith(3999, '0.0.0.0');
   });
 
-  it('utilise 3005 par défaut', async () => {
+  it('utilise 3005 et localhost:5173 par défaut', async () => {
     delete process.env.PORT;
+    delete process.env.CORS_ORIGINS;
+    await import('./main');
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(app.enableCors).toHaveBeenCalledWith({
+      origin: ['http://localhost:5173'],
+    });
+    expect(listen).toHaveBeenCalledWith(3005, '0.0.0.0');
+  });
+
+  it('utilise 3005 si PORT est une chaîne vide', async () => {
+    process.env.PORT = '';
     await import('./main');
     await new Promise<void>((resolve) => setImmediate(resolve));
 

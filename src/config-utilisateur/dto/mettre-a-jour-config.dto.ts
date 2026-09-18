@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Langue, ModeNotification, Theme } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class MettreAJourConfigDto {
   @ApiPropertyOptional({
@@ -12,18 +13,18 @@ export class MettreAJourConfigDto {
   @MaxLength(50)
   alias?: string;
 
-  @ApiPropertyOptional({ enum: ['sombre', 'clair'] })
+  @ApiPropertyOptional({ enum: Theme })
   @IsOptional()
-  @IsIn(['sombre', 'clair'])
-  theme?: 'sombre' | 'clair';
+  @IsEnum(Theme)
+  theme?: Theme;
 
-  @ApiPropertyOptional({ enum: ['fr', 'en'] })
+  @ApiPropertyOptional({ enum: Langue })
   @IsOptional()
-  @IsIn(['fr', 'en'])
-  langue?: 'fr' | 'en';
+  @IsEnum(Langue)
+  langue?: Langue;
 
-  @ApiPropertyOptional({ enum: ['systeme', 'discret', 'aucune'] })
+  @ApiPropertyOptional({ enum: ModeNotification })
   @IsOptional()
-  @IsIn(['systeme', 'discret', 'aucune'])
-  modeNotification?: 'systeme' | 'discret' | 'aucune';
+  @IsEnum(ModeNotification)
+  modeNotification?: ModeNotification;
 }

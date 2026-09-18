@@ -1,9 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty } from 'class-validator';
+import { StatutPresence } from '@prisma/client';
+import { IsEnum } from 'class-validator';
 
 export class DefinirPresenceDto {
-  @ApiProperty({ enum: ['enLigne', 'horsLigne'] })
-  @IsNotEmpty()
-  @IsIn(['enLigne', 'horsLigne'])
-  statut!: 'enLigne' | 'horsLigne';
+  @ApiProperty({ enum: StatutPresence })
+  @IsEnum(StatutPresence)
+  statut!: StatutPresence;
 }

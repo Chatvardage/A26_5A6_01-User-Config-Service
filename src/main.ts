@@ -7,7 +7,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api');
-  app.enableCors();
+  app.enableCors({
+    origin: (process.env.CORS_ORIGINS || 'http://localhost:5173').split(','),
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -28,7 +30,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
 
-  const port = Number({ PORT: '3005', ...process.env }.PORT);
+  const port = Number(process.env.PORT || '3005');
   await app.listen(port, '0.0.0.0');
 }
 

@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { HealthController } from './health.controller';
 describe('HealthController', () => {
   it('retourne ok après requête DB', async () => {
@@ -14,5 +15,22 @@ describe('HealthController', () => {
       }),
     );
     expect(new Date(result.timestamp).toString()).not.toBe('Invalid Date');
+  });
+
+  it('renvoie une 503 structurée si la base est injoignable', async () => {
+    const prisma: any = {
+      $queryRaw: jest.fn().mockRejectedValue(new Error('connexion refusée')),
+    };
+    const controller = new HealthController(prisma);
+    await expect(controller.health()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    await expect(controller.health()).rejects.toMatchObject({
+      response: expect.objectContaining({
+        status: 'erreur',
+        service: 'user-config-service',
+        database: 'erreur',
+      }),
+    });
   });
 });

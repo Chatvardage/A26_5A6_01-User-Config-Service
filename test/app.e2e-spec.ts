@@ -7,7 +7,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 describe('User Config Service (e2e)', () => {
   let app: INestApplication;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -42,7 +42,7 @@ describe('User Config Service (e2e)', () => {
     await app.init();
   });
 
-  afterEach(async () => app.close());
+  afterAll(async () => app.close());
 
   it('GET /api/health', async () => {
     const response = await request(app.getHttpServer())

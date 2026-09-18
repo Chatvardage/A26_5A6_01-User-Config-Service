@@ -1,7 +1,9 @@
-export type Theme = 'sombre' | 'clair';
-export type Langue = 'fr' | 'en';
-export type StatutPresence = 'enLigne' | 'horsLigne';
-export type ModeNotification = 'systeme' | 'discret' | 'aucune';
+import {
+  Langue,
+  ModeNotification,
+  StatutPresence,
+  Theme,
+} from '@prisma/client';
 
 export interface ConfigUtilisateurResponse {
   type: 'configUtilisateur';
