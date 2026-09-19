@@ -7,6 +7,30 @@ import { PrismaService } from '../src/prisma/prisma.service';
 describe('User Config Service (e2e)', () => {
   let app: INestApplication;
   const queryRaw = jest.fn().mockResolvedValue([{ '?column?': 1 }]);
+  const findUnique = jest.fn().mockResolvedValue({
+    idUtilisateur: 'user-1',
+    alias: null,
+    theme: 'sombre',
+    langue: 'fr',
+    statutPresence: 'horsLigne',
+    vuLaDerniereFois: null,
+    modeNotification: 'systeme',
+    creeLe: new Date(),
+    misAJourLe: new Date(),
+  });
+  const create = jest.fn().mockImplementation(({ data }) =>
+    Promise.resolve({
+      idUtilisateur: data.idUtilisateur,
+      alias: null,
+      theme: 'sombre',
+      langue: 'fr',
+      statutPresence: 'horsLigne',
+      vuLaDerniereFois: null,
+      modeNotification: 'systeme',
+      creeLe: new Date(),
+      misAJourLe: new Date(),
+    }),
+  );
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -16,17 +40,8 @@ describe('User Config Service (e2e)', () => {
       .useValue({
         $queryRaw: queryRaw,
         configUtilisateur: {
-          findUnique: jest.fn().mockResolvedValue({
-            idUtilisateur: 'user-1',
-            alias: null,
-            theme: 'sombre',
-            langue: 'fr',
-            statutPresence: 'horsLigne',
-            vuLaDerniereFois: null,
-            modeNotification: 'systeme',
-            creeLe: new Date(),
-            misAJourLe: new Date(),
-          }),
+          findUnique,
+          create,
           upsert: jest.fn().mockResolvedValue({
             idUtilisateur: 'user-1',
             alias: null,
@@ -95,6 +110,24 @@ describe('User Config Service (e2e)', () => {
       expect.objectContaining({
         type: 'configUtilisateur',
         idUtilisateur: 'user-1',
+        theme: 'sombre',
+      }),
+    );
+  });
+
+  it('GET /api/config-utilisateur crée la config au premier appel', async () => {
+    findUnique.mockResolvedValueOnce(null);
+    const response = await request(app.getHttpServer())
+      .get('/api/config-utilisateur')
+      .set('x-user-id', 'user-nouveau')
+      .expect(200);
+    expect(create).toHaveBeenCalledWith({
+      data: { idUtilisateur: 'user-nouveau' },
+    });
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        type: 'configUtilisateur',
+        idUtilisateur: 'user-nouveau',
         theme: 'sombre',
       }),
     );

@@ -267,6 +267,7 @@ npx prisma generate
 npm run build
 npm test
 npm run test:e2e
+npm run test:cov
 npm run lint
 ```
 

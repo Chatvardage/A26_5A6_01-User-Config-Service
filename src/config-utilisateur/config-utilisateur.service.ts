@@ -32,6 +32,9 @@ export class ConfigUtilisateurService {
         erreur instanceof Prisma.PrismaClientKnownRequestError &&
         erreur.code === CODE_CONTRAINTE_UNIQUE
       ) {
+        // findUniqueOrThrow suppose que la ligne créée par la requête
+        // concurrente existe encore : ce service ne supprime jamais de
+        // ConfigUtilisateur, cette hypothèse est donc sûre ici.
         const config = await this.prisma.configUtilisateur.findUniqueOrThrow({
           where: { idUtilisateur },
         });
@@ -54,6 +57,9 @@ export class ConfigUtilisateurService {
       throw new BadRequestException('Aucune modification fournie');
     }
 
+    // dto.alias ne peut valoir que string|undefined ici, jamais null : le
+    // ValidationPipe global (@ValidateIf du DTO) rejette null en 400 avant
+    // d'atteindre ce service. Voir AGENTS.md pour ne pas dupliquer ce garde.
     const donnees = {
       ...(dto.alias !== undefined
         ? { alias: dto.alias.trim() === '' ? null : dto.alias.trim() }

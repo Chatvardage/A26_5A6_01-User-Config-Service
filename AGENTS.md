@@ -101,6 +101,22 @@ Ce choix est volontaire pour ce dépôt :
 
 Si le projet évolue vers un déploiement multi-replica (production réelle, Kubernetes, etc.), ce pattern devrait être revu **sur les trois services en même temps**, pas isolément sur celui-ci.
 
+### `recupererOuCreer` suppose qu'un `ConfigUtilisateur` n'est jamais supprimé
+
+Après un conflit de création concurrente (`P2002`), `recupererOuCreer` relit la ligne avec `findUniqueOrThrow` en supposant qu'elle existe toujours. Ceci n'est sûr que parce qu'**aucun code de ce service ne supprime jamais de `ConfigUtilisateur`** (pas de route `DELETE`, pas de cascade).
+
+Si une fonctionnalité de suppression est ajoutée un jour, cette hypothèse doit être revalidée et cette méthode adaptée (par exemple avec un `findUnique` + gestion explicite du cas absent, plutôt que `findUniqueOrThrow`).
+
+### Validation de `alias`/`theme`/`langue`/`modeNotification` : à la frontière (DTO) seulement, pas dans le service
+
+`ConfigUtilisateurService.mettreAJour` fait `dto.alias.trim()` sans revérifier que `dto.alias` n'est pas `null`, alors que rien n'empêche *syntaxiquement* TypeScript de laisser passer `null` (le type `alias?: string` n'est pas vérifié à l'exécution). Ceci est volontaire, pas un oubli :
+
+- Le seul appelant réel de `mettreAJour` est `ConfigUtilisateurController`, qui reçoit un DTO déjà passé par le `ValidationPipe` global. Le DTO utilise `@ValidateIf((o) => o.alias !== undefined)` pour rejeter explicitement `alias: null` en 400 **avant** d'atteindre le service (voir `mettre-a-jour-config.dto.ts` et `mettre-a-jour-config.dto.spec.ts`).
+- Dupliquer une garde `dto.alias == null` dans le service reviendrait à maintenir la même règle à deux endroits pour un cas qui ne peut pas se produire via le système réel aujourd'hui.
+- Ce serait aussi incohérent avec `theme`, `langue`, `modeNotification` (DTO) et `statut` (présence), qui reposent tous uniquement sur cette même frontière sans garde supplémentaire côté service — traiter `alias` différemment serait arbitraire.
+
+Ne pas ajouter cette garde « au cas où » côté service. Si un futur appelant interne (job, autre service, script de seed) doit appeler `mettreAJour` sans passer par le `ValidationPipe` HTTP, il doit construire un `MettreAJourConfigDto` valide (ou passer par `class-validator` lui-même), pas contourner la validation.
+
 ## Base de données et Prisma
 
 Schéma principal : `ConfigUtilisateur` (une ligne par utilisateur, clé primaire `idUtilisateur`).
