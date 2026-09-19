@@ -59,7 +59,8 @@ export class ConfigUtilisateurService {
 
     // dto.alias ne peut valoir que string|undefined ici, jamais null : le
     // ValidationPipe global (@ValidateIf du DTO) rejette null en 400 avant
-    // d'atteindre ce service. Voir AGENTS.md pour ne pas dupliquer ce garde.
+    // d'atteindre ce service. Le trim idempotent préserve aussi cette
+    // normalisation pour un appel direct avec un DTO déjà valide.
     const aliasTrim = dto.alias?.trim();
     const donnees = {
       ...(aliasTrim !== undefined

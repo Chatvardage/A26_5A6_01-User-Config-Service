@@ -13,6 +13,8 @@ import { DefinirPresenceDto } from './dto/definir-presence.dto';
 import { MettreAJourConfigDto } from './dto/mettre-a-jour-config.dto';
 import { ConfigUtilisateurResponse } from './types/config-utilisateur-response.type';
 
+// Borne la taille de l'en-tête transmis par la Gateway sans imposer de format
+// d'identifiant propre au service Authentification.
 const LONGUEUR_MAX_ID_UTILISATEUR = 255;
 
 @ApiTags('Configuration utilisateur')

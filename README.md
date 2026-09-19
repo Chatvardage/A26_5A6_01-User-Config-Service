@@ -59,6 +59,9 @@ Toutes les routes sont préfixées par `/api`.
 | PUT     | `/api/config-utilisateur/presence` | Définit le statut de présence de l'utilisateur connecté                                            |
 | GET     | `/api/health`                      | Vérifie le service et PostgreSQL                                                                   |
 
+Pour effacer l'alias, envoyez une chaîne vide ou composée uniquement d'espaces :
+elle est persistée comme `null`.
+
 ## Installation locale
 
 Prérequis : Node.js 22, et un PostgreSQL accessible sur `localhost:5432` (via Docker, voir plus bas).

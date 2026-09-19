@@ -10,7 +10,7 @@ export class MettreAJourConfigDto {
   @ApiPropertyOptional({
     example: 'Ariane',
     description:
-      "Nom d'affichage choisi par l'utilisateur, distinct du pseudo du service d'authentification",
+      "Nom d'affichage choisi par l'utilisateur, distinct du pseudo du service d'authentification. Une valeur vide ou composée uniquement d'espaces efface l'alias.",
   })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,

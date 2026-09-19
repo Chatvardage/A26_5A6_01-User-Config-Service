@@ -1,6 +1,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
+# Le schéma Prisma est copié au stage build : le client est généré après COPY . .
 RUN npm ci
 
 FROM node:22-alpine AS build
