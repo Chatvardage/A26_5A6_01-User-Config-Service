@@ -60,9 +60,10 @@ export class ConfigUtilisateurService {
     // dto.alias ne peut valoir que string|undefined ici, jamais null : le
     // ValidationPipe global (@ValidateIf du DTO) rejette null en 400 avant
     // d'atteindre ce service. Voir AGENTS.md pour ne pas dupliquer ce garde.
+    const aliasTrim = dto.alias?.trim();
     const donnees = {
-      ...(dto.alias !== undefined
-        ? { alias: dto.alias.trim() === '' ? null : dto.alias.trim() }
+      ...(aliasTrim !== undefined
+        ? { alias: aliasTrim === '' ? null : aliasTrim }
         : {}),
       ...(dto.theme !== undefined ? { theme: dto.theme } : {}),
       ...(dto.langue !== undefined ? { langue: dto.langue } : {}),

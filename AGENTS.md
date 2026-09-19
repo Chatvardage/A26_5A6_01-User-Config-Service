@@ -117,6 +117,36 @@ Si une fonctionnalité de suppression est ajoutée un jour, cette hypothèse doi
 
 Ne pas ajouter cette garde « au cas où » côté service. Si un futur appelant interne (job, autre service, script de seed) doit appeler `mettreAJour` sans passer par le `ValidationPipe` HTTP, il doit construire un `MettreAJourConfigDto` valide (ou passer par `class-validator` lui-même), pas contourner la validation.
 
+### Identifiants de développement en clair dans `compose.local.yml`
+
+`compose.local.yml` contient `POSTGRES_PASSWORD: chatvardage` en clair, versionné dans le dépôt. C'est volontaire, pas une fuite de secret :
+
+- Ce PostgreSQL est **jetable** : il n'existe que dans un conteneur local, lié uniquement à `localhost`, recréé/détruit à volonté (`docker compose down -v`).
+- Ces identifiants ne protègent rien de sensible et ne sont réutilisés nulle part ailleurs (l'environnement d'équipe via `Infra` utilise ses propres identifiants distincts, non versionnés dans ce dépôt).
+- Room-Service utilise exactement le même pattern dans son propre `compose.local.yml`.
+
+Ne pas déplacer ça vers un `.env.local` : ça ajouterait de la friction pour du développement local sans protéger un vrai secret. Ce raisonnement ne s'applique **pas** à un secret réel (`JWT_SECRET`, mot de passe de l'environnement `Infra`, etc.) : ceux-là ne doivent jamais être versionnés.
+
+### `CORS_ORIGINS` n'est pas validé au démarrage
+
+`src/main.ts` découpe `process.env.CORS_ORIGINS` sur les virgules sans vérifier que chaque valeur est une URL bien formée. C'est volontaire :
+
+- `CORS_ORIGINS` est une variable de configuration posée par la personne qui déploie le service (via `Infra`/`docker-compose`), pas une entrée utilisateur ou attaquant — même niveau de confiance que `DATABASE_URL` ou `PORT`.
+- Une origine mal formée échoue déjà de façon sûre : le navigateur ne fera simplement jamais correspondre son en-tête `Origin` à une valeur invalide, donc le CORS reste fermé (pas de trou de sécurité).
+- Une validation stricte de type "doit être une URL" rejetterait aussi `*` (joker CORS légitime), ce qui casserait un cas d'usage volontaire si l'équipe veut un jour l'utiliser.
+
+Ne pas ajouter de validation de format ici. Si une vraie erreur de config CORS doit être détectée tôt, le faire au niveau du déploiement (`docker compose config`, revue de PR sur `Infra`), pas dans le code applicatif.
+
+### Pas de message d'erreur personnalisé quand un champ est explicitement `null`
+
+Les DTO utilisent les messages par défaut de `class-validator` (ex. `"alias must be a string"`, `"theme must be one of the following values: sombre, clair"`) plutôt qu'un message dédié du type « ce champ ne peut pas être null ». C'est volontaire :
+
+- Ces messages par défaut couvrent déjà correctement **toute** valeur invalide (nombre, objet, `null`, etc.), pas seulement `null` — c'est le comportement standard de validation partout ailleurs dans ce dépôt.
+- Créer un message spécifique au cas `null` introduirait un traitement incohérent : pourquoi `null` mériterait un message sur-mesure et pas un `42` ou un `{}` envoyé par erreur ?
+- Aucun autre DTO du projet (ici ou dans Room-Service/Message-Service) ne personnalise ses messages de validation.
+
+Ne pas ajouter de décorateur `@IsNotNull()` custom ou de message personnalisé pour ce cas précis sans étendre la même logique à toutes les validations du dépôt.
+
 ## Base de données et Prisma
 
 Schéma principal : `ConfigUtilisateur` (une ligne par utilisateur, clé primaire `idUtilisateur`).
@@ -184,6 +214,8 @@ Lors d'un changement de comportement :
 5. mocker `PrismaService` dans les tests unitaires plutôt que dépendre d'une vraie base de données.
 
 Les tests E2E doivent refléter les routes actuelles du User-Config-Service.
+
+`test/app.e2e-spec.ts` mocke entièrement `PrismaService` (pas de vraie base de données) : c'est délibéré et conforme à la convention officielle de NestJS (le schematic `nest new` génère un fichier `*.e2e-spec.ts` selon exactement ce pattern — pipeline HTTP complète via `supertest`, providers remplacés). Room-Service fait de même. Ne pas renommer ce fichier en `*.integration-spec.ts` uniquement pour ce dépôt : ça introduirait une incohérence de convention avec les autres services sans bénéfice réel.
 
 ## Langue du code
 

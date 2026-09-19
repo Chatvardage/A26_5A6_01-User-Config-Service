@@ -14,6 +14,9 @@ export async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api');
+  // CORS_ORIGINS est une variable de config posée par la personne qui déploie
+  // (même confiance que DATABASE_URL/PORT), pas une entrée utilisateur : pas
+  // de validation de format ici. Voir AGENTS.md.
   app.enableCors({
     origin: (process.env.CORS_ORIGINS || 'http://localhost:5173').split(','),
   });

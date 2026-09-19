@@ -18,6 +18,8 @@ services:
 
   postgres:
     image: postgres:17-alpine
+    # Identifiants jetables pour ce PostgreSQL local uniquement (lié à
+    # localhost, détruit avec `down -v`) — voir AGENTS.md, pas un secret réel.
     environment:
       POSTGRES_USER: chatvardage
       POSTGRES_PASSWORD: chatvardage

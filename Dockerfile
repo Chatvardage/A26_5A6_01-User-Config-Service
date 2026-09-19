@@ -24,6 +24,8 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
 EXPOSE 3005
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3005/api/health || exit 1
 # Migration au démarrage acceptée en mono-replica (voir AGENTS.md) ; à revoir
 # (init container / job dédié) si ce service passe un jour en multi-replica.
 CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/main"]

@@ -2,6 +2,9 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Langue, ModeNotification, Theme } from '@prisma/client';
 import { IsEnum, IsString, MaxLength, ValidateIf } from 'class-validator';
 
+// @ValidateIf(champ !== undefined) rejette explicitement null (400) tout en
+// gardant le champ optionnel. Messages d'erreur par défaut de class-validator
+// volontairement non personnalisés pour null : voir AGENTS.md.
 export class MettreAJourConfigDto {
   @ApiPropertyOptional({
     example: 'Ariane',
