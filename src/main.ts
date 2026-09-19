@@ -20,7 +20,8 @@ export async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: (process.env.CORS_ORIGINS || 'http://localhost:5173')
       .split(',')
-      .map((origine) => origine.trim()),
+      .map((origine) => origine.trim())
+      .filter((origine) => origine.length > 0),
   });
   app.useGlobalPipes(
     new ValidationPipe({

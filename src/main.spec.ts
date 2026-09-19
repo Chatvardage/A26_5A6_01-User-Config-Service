@@ -47,7 +47,7 @@ describe('bootstrap', () => {
 
   it('configure et démarre sur PORT', async () => {
     process.env.PORT = '3999';
-    process.env.CORS_ORIGINS = 'http://exemple.test, http://autre.test ';
+    process.env.CORS_ORIGINS = 'http://exemple.test, , http://autre.test ,, ';
     await bootstrap();
 
     expect(app.setGlobalPrefix).toHaveBeenCalledWith('api');

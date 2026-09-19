@@ -52,12 +52,12 @@ En production, ce service ne doit pas être exposé directement à Internet. Cet
 
 Toutes les routes sont préfixées par `/api`.
 
-| Méthode | Route | Description |
-|---|---|---|
-| GET | `/api/config-utilisateur` | Récupère la configuration de l'utilisateur connecté (créée avec des valeurs par défaut si absente) |
-| PATCH | `/api/config-utilisateur` | Met à jour l'alias, le thème, la langue ou le mode de notification |
-| PUT | `/api/config-utilisateur/presence` | Définit le statut de présence de l'utilisateur connecté |
-| GET | `/api/health` | Vérifie le service et PostgreSQL |
+| Méthode | Route                              | Description                                                                                        |
+| ------- | ---------------------------------- | -------------------------------------------------------------------------------------------------- |
+| GET     | `/api/config-utilisateur`          | Récupère la configuration de l'utilisateur connecté (créée avec des valeurs par défaut si absente) |
+| PATCH   | `/api/config-utilisateur`          | Met à jour l'alias, le thème, la langue ou le mode de notification                                 |
+| PUT     | `/api/config-utilisateur/presence` | Définit le statut de présence de l'utilisateur connecté                                            |
+| GET     | `/api/health`                      | Vérifie le service et PostgreSQL                                                                   |
 
 ## Installation locale
 
@@ -122,8 +122,12 @@ Dans l'environnement final de l'équipe, ce service doit plutôt être référen
 
 ```env
 PORT=3005
+CORS_ORIGINS=http://localhost:5173
 DATABASE_URL="postgresql://config_service:config_service_dev@localhost:5432/chatvardage_config?schema=public"
 ```
+
+`CORS_ORIGINS` accepte une liste d'origines séparées par des virgules. Si elle
+est absente, le service autorise uniquement `http://localhost:5173`.
 
 ## Exemple — récupérer sa configuration
 

@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Langue, ModeNotification, Theme } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import { IsEnum, IsString, MaxLength, ValidateIf } from 'class-validator';
 
 // @ValidateIf(champ !== undefined) rejette explicitement null (400) tout en
@@ -11,6 +12,9 @@ export class MettreAJourConfigDto {
     description:
       "Nom d'affichage choisi par l'utilisateur, distinct du pseudo du service d'authentification",
   })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @ValidateIf((objet: MettreAJourConfigDto) => objet.alias !== undefined)
   @IsString()
   @MaxLength(50)

@@ -36,6 +36,15 @@ describe('MettreAJourConfigDto', () => {
     expect(erreurs[0].constraints).toHaveProperty('maxLength');
   });
 
+  it('valide la longueur de l’alias après avoir retiré ses espaces externes', async () => {
+    const dto = plainToInstance(MettreAJourConfigDto, {
+      alias: `  ${'a'.repeat(50)}  `,
+    });
+
+    expect(dto.alias).toBe('a'.repeat(50));
+    expect(await validate(dto)).toEqual([]);
+  });
+
   it('rejette un thème inconnu', async () => {
     const erreurs = await valider({ theme: 'bleu' });
     expect(erreurs).toHaveLength(1);
