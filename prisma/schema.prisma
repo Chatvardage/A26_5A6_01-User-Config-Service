@@ -37,5 +37,5 @@ model ConfigUtilisateur {
   vuLaDerniereFois DateTime?
   modeNotification ModeNotification  @default(systeme)
   creeLe           DateTime          @default(now())
-  misAJourLe       DateTime          @updatedAt
+  misAJourLe       DateTime          @default(now()) @updatedAt
 }

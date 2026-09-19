@@ -1,10 +1,17 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('Santé')
 @Controller('health')
 export class HealthController {
+  private readonly logger = new Logger(HealthController.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
@@ -12,7 +19,8 @@ export class HealthController {
   async health() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-    } catch {
+    } catch (erreur) {
+      this.logger.error(erreur);
       throw new ServiceUnavailableException({
         status: 'erreur',
         service: 'user-config-service',

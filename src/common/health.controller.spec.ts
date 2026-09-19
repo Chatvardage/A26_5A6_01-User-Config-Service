@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import { HealthController } from './health.controller';
 describe('HealthController', () => {
   it('retourne ok après requête DB', async () => {
@@ -18,19 +18,24 @@ describe('HealthController', () => {
   });
 
   it('renvoie une 503 structurée si la base est injoignable', async () => {
+    const erreur = new Error('connexion refusée');
     const prisma: any = {
-      $queryRaw: jest.fn().mockRejectedValue(new Error('connexion refusée')),
+      $queryRaw: jest.fn().mockRejectedValue(erreur),
     };
+    const journalErreur = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation();
     const controller = new HealthController(prisma);
-    await expect(controller.health()).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
-    await expect(controller.health()).rejects.toMatchObject({
+    const resultat = controller.health();
+
+    await expect(resultat).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(resultat).rejects.toMatchObject({
       response: expect.objectContaining({
         status: 'erreur',
         service: 'user-config-service',
         database: 'erreur',
       }),
     });
+    expect(journalErreur).toHaveBeenCalledWith(erreur);
   });
 });

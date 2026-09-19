@@ -18,7 +18,9 @@ export async function bootstrap(): Promise<void> {
   // (même confiance que DATABASE_URL/PORT), pas une entrée utilisateur : pas
   // de validation de format ici. Voir AGENTS.md.
   app.enableCors({
-    origin: (process.env.CORS_ORIGINS || 'http://localhost:5173').split(','),
+    origin: (process.env.CORS_ORIGINS || 'http://localhost:5173')
+      .split(',')
+      .map((origine) => origine.trim()),
   });
   app.useGlobalPipes(
     new ValidationPipe({
