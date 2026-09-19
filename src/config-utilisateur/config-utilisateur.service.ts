@@ -55,6 +55,8 @@ export class ConfigUtilisateurService {
     idUtilisateur: string,
     statut: StatutPresence,
   ): Promise<ConfigUtilisateurResponse> {
+    // Mis à jour même en passant horsLigne : c'est justement l'instant de la
+    // déconnexion qui doit être affiché comme « vu(e) pour la dernière fois ».
     const vuLaDerniereFois = new Date();
     const config = await this.prisma.configUtilisateur.upsert({
       where: { idUtilisateur },

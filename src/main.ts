@@ -3,7 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
-async function bootstrap() {
+export async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api');
@@ -31,7 +31,19 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   const port = Number(process.env.PORT || '3005');
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(
+      `Variable d'environnement PORT invalide : "${process.env.PORT}"`,
+    );
+  }
+
   await app.listen(port, '0.0.0.0');
 }
 
-void bootstrap();
+/* istanbul ignore next -- point d'entrée réel du processus, non exécuté sous Jest */
+if (require.main === module) {
+  bootstrap().catch((erreur: unknown) => {
+    console.error(erreur);
+    process.exit(1);
+  });
+}

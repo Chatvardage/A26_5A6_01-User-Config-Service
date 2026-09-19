@@ -78,6 +78,18 @@ Ce format doit permettre de remplacer, côté Frontend, la simulation locale act
 
 Les `idUtilisateur` restent des chaînes. Ne pas ajouter de table `User` ou de clé étrangère vers un utilisateur : les utilisateurs appartiennent au service d'authentification.
 
+## Décisions de conception à préserver
+
+### `vuLaDerniereFois` mis à jour même en passant `horsLigne`
+
+Dans `ConfigUtilisateurService.definirPresence`, `vuLaDerniereFois` est réécrit à **chaque** appel, peu importe le `statut` fourni (`enLigne` ou `horsLigne`). Ceci est volontaire, pas un oubli :
+
+- Ce champ représente « vu(e) pour la dernière fois », affiché côté Frontend uniquement quand `statutPresence` est `horsLigne` (convention WhatsApp/Messenger/Telegram).
+- Il doit donc correspondre à l'instant de la **déconnexion**, pas à celui de la dernière connexion.
+- Une correction qui ne mettrait à jour ce champ qu'en passant `enLigne` semble intuitive à première vue, mais casserait cette sémantique : un utilisateur resté connecté 3 heures puis déconnecté afficherait alors « vu(e) il y a 3 heures » juste après s'être déconnecté.
+
+Ne pas « corriger » ce comportement sans revalider l'intention produit avec l'équipe.
+
 ## Base de données et Prisma
 
 Schéma principal : `ConfigUtilisateur` (une ligne par utilisateur, clé primaire `idUtilisateur`).

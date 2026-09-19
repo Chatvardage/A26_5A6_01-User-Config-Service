@@ -66,9 +66,10 @@ export class ConfigUtilisateurController {
   }
 
   private exigerIdUtilisateur(idUtilisateur?: string): string {
-    if (!idUtilisateur?.trim()) {
+    const identifiant = idUtilisateur?.trim();
+    if (!identifiant) {
       throw new UnauthorizedException('Utilisateur non authentifié');
     }
-    return idUtilisateur;
+    return identifiant;
   }
 }

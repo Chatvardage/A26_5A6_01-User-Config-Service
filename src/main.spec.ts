@@ -34,17 +34,19 @@ jest.mock('@nestjs/swagger', () => ({
   ApiPropertyOptional: decorator,
 }));
 
+import { bootstrap } from './main';
+
 describe('bootstrap', () => {
   beforeEach(() => {
-    jest.resetModules();
     jest.clearAllMocks();
+    delete process.env.PORT;
+    delete process.env.CORS_ORIGINS;
   });
 
   it('configure et démarre sur PORT', async () => {
     process.env.PORT = '3999';
     process.env.CORS_ORIGINS = 'http://exemple.test,http://autre.test';
-    await import('./main');
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await bootstrap();
 
     expect(app.setGlobalPrefix).toHaveBeenCalledWith('api');
     expect(app.enableCors).toHaveBeenCalledWith({
@@ -62,10 +64,7 @@ describe('bootstrap', () => {
   });
 
   it('utilise 3005 et localhost:5173 par défaut', async () => {
-    delete process.env.PORT;
-    delete process.env.CORS_ORIGINS;
-    await import('./main');
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await bootstrap();
 
     expect(app.enableCors).toHaveBeenCalledWith({
       origin: ['http://localhost:5173'],
@@ -75,9 +74,22 @@ describe('bootstrap', () => {
 
   it('utilise 3005 si PORT est une chaîne vide', async () => {
     process.env.PORT = '';
-    await import('./main');
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await bootstrap();
 
     expect(listen).toHaveBeenCalledWith(3005, '0.0.0.0');
+  });
+
+  it('rejette un PORT non numérique sans démarrer le serveur', async () => {
+    process.env.PORT = 'abc';
+    await expect(bootstrap()).rejects.toThrow(
+      'Variable d\'environnement PORT invalide : "abc"',
+    );
+    expect(listen).not.toHaveBeenCalled();
+  });
+
+  it('rejette un PORT hors intervalle', async () => {
+    process.env.PORT = '70000';
+    await expect(bootstrap()).rejects.toThrow(/PORT invalide/);
+    expect(listen).not.toHaveBeenCalled();
   });
 });

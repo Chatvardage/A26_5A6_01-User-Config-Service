@@ -20,6 +20,11 @@ describe('ConfigUtilisateurController', () => {
     expect(s.recupererOuCreer).toHaveBeenCalledWith('user-1');
   });
 
+  it('recupererMaConfig nettoie les espaces autour de l’identifiant', () => {
+    c.recupererMaConfig('  user-1  ');
+    expect(s.recupererOuCreer).toHaveBeenCalledWith('user-1');
+  });
+
   it('mettreAJourMaConfig délègue au service', () => {
     c.mettreAJourMaConfig({ alias: 'x' }, 'user-1');
     expect(s.mettreAJour).toHaveBeenCalledWith('user-1', { alias: 'x' });

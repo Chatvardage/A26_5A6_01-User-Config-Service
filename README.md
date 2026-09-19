@@ -165,6 +165,8 @@ curl -X PUT http://localhost:3005/api/config-utilisateur/presence \
   -d '{"statut":"enLigne"}'
 ```
 
+`vuLaDerniereFois` est mis à jour à **chaque** appel à cette route, y compris en passant `statut: "horsLigne"`. C'est volontaire : ce champ représente « vu(e) pour la dernière fois », qui doit correspondre à l'instant de la déconnexion (convention utilisée par WhatsApp/Messenger/Telegram), pas à la dernière connexion. Le frontend n'a pas besoin de lire ce champ quand `statutPresence` vaut `enLigne` (il affiche alors un indicateur « en ligne » plutôt qu'un horodatage).
+
 ## Base de données
 
 Le service possède un seul modèle, une ligne par utilisateur :
