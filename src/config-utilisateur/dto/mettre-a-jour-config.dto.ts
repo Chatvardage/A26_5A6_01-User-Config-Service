@@ -1,0 +1,39 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Langue, ModeNotification, Theme } from '@prisma/client';
+import { Transform } from 'class-transformer';
+import { IsEnum, IsString, MaxLength, ValidateIf } from 'class-validator';
+
+// @ValidateIf(champ !== undefined) rejette explicitement null (400) tout en
+// gardant le champ optionnel. Messages d'erreur par défaut de class-validator
+// volontairement non personnalisés pour null : voir AGENTS.md.
+export class MettreAJourConfigDto {
+  @ApiPropertyOptional({
+    example: 'Ariane',
+    description:
+      "Nom d'affichage choisi par l'utilisateur, distinct du pseudo du service d'authentification. Une valeur vide ou composée uniquement d'espaces efface l'alias.",
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @ValidateIf((objet: MettreAJourConfigDto) => objet.alias !== undefined)
+  @IsString()
+  @MaxLength(50)
+  alias?: string;
+
+  @ApiPropertyOptional({ enum: Theme })
+  @ValidateIf((objet: MettreAJourConfigDto) => objet.theme !== undefined)
+  @IsEnum(Theme)
+  theme?: Theme;
+
+  @ApiPropertyOptional({ enum: Langue })
+  @ValidateIf((objet: MettreAJourConfigDto) => objet.langue !== undefined)
+  @IsEnum(Langue)
+  langue?: Langue;
+
+  @ApiPropertyOptional({ enum: ModeNotification })
+  @ValidateIf(
+    (objet: MettreAJourConfigDto) => objet.modeNotification !== undefined,
+  )
+  @IsEnum(ModeNotification)
+  modeNotification?: ModeNotification;
+}

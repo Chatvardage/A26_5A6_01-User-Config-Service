@@ -1,0 +1,293 @@
+# AGENTS.md — Chatvardage User Config Service
+
+Ce fichier contient les règles de travail pour tout agent IA ou développeur qui modifie ce dépôt.
+
+## Contexte du projet
+
+Ce dépôt est le **User-Config-Service** de Chatvardage pour le Contrôle 2 du cours `420-5A6-ST – A26`.
+
+Architecture d'équipe :
+
+- `Frontend` : Electron et ChatGateway réel.
+- `Serveur-API` : API Gateway / point d'entrée unique.
+- `Authentification` : utilisateurs, authentification et rôles.
+- `Room-Service` : gestion et administration des salons.
+- `Message-Service` : messages privés, historique et temps réel.
+- `User-Config-Service` : alias, thème, langue, présence et préférences de notification. **Ce dépôt.**
+- `Dashboard` : panneau d'administration / AdminJS.
+- `Infra` : Docker Compose, PostgreSQL, Redis et orchestration globale.
+
+Le User-Config-Service ne doit **pas** prendre en charge l'authentification, les salons, les messages ou le temps réel. Il persiste uniquement les préférences propres à chaque utilisateur.
+
+## Stack
+
+- Node.js 22
+- NestJS 11
+- TypeScript
+- Prisma 6
+- PostgreSQL 17
+- Jest
+- ESLint + Prettier
+- Swagger / OpenAPI
+- Docker / Docker Compose
+
+## Responsabilités du User-Config-Service
+
+Le service doit conserver la responsabilité de :
+
+- lire la configuration d'un utilisateur (créée avec des valeurs par défaut si elle n'existe pas encore);
+- mettre à jour l'alias, le thème, la langue et le mode de notification;
+- définir le statut de présence (`enLigne` / `horsLigne`) et l'horodatage de dernière activité;
+- persister ces préférences dans PostgreSQL, une ligne par utilisateur;
+- exposer un healthcheck pour le service et PostgreSQL.
+
+Ne pas déplacer ici les responsabilités des autres microservices. En particulier, ne pas gérer le pseudo/l'identité (propriété d'`Authentification`), ni les salons ou messages.
+
+## Contrat avec le Gateway
+
+Le service est destiné à être appelé derrière `Serveur-API`.
+
+Le Gateway transmet l'identité déjà validée avec :
+
+```http
+x-user-id: <id utilisateur>
+```
+
+Ne jamais considérer cet en-tête comme sûr si le service devient directement exposé à Internet. Dans l'architecture finale, le User-Config-Service doit rester un service interne.
+
+Toutes les routes sont sous `/api`. Swagger est exposé sous `/docs`.
+
+## Contrat de données avec le Frontend
+
+Le format retourné par l'API doit rester stable, sauf changement coordonné entre les dépôts :
+
+```ts
+{
+  type: 'configUtilisateur',
+  idUtilisateur: string,
+  alias: string | null,
+  theme: 'sombre' | 'clair',
+  langue: 'fr' | 'en',
+  statutPresence: 'enLigne' | 'horsLigne',
+  vuLaDerniereFois: string | null,
+  modeNotification: 'systeme' | 'discret' | 'aucune'
+}
+```
+
+Ce format doit permettre de remplacer, côté Frontend, la simulation locale actuelle (`localStorage`, IPC Electron `theme:*`, `langue:*`, `presence:*`, `NotifPrefs`) par de vrais appels à ce service.
+
+Les `idUtilisateur` restent des chaînes. Ne pas ajouter de table `User` ou de clé étrangère vers un utilisateur : les utilisateurs appartiennent au service d'authentification.
+
+## Décisions de conception à préserver
+
+### `vuLaDerniereFois` mis à jour même en passant `horsLigne`
+
+Dans `ConfigUtilisateurService.definirPresence`, `vuLaDerniereFois` est réécrit à **chaque** appel, peu importe le `statut` fourni (`enLigne` ou `horsLigne`). Ceci est volontaire, pas un oubli :
+
+- Ce champ représente « vu(e) pour la dernière fois », affiché côté Frontend uniquement quand `statutPresence` est `horsLigne` (convention WhatsApp/Messenger/Telegram).
+- Il doit donc correspondre à l'instant de la **déconnexion**, pas à celui de la dernière connexion.
+- Une correction qui ne mettrait à jour ce champ qu'en passant `enLigne` semble intuitive à première vue, mais casserait cette sémantique : un utilisateur resté connecté 3 heures puis déconnecté afficherait alors « vu(e) il y a 3 heures » juste après s'être déconnecté.
+
+Ne pas « corriger » ce comportement sans revalider l'intention produit avec l'équipe.
+
+### Migration Prisma exécutée dans le `CMD` du conteneur (pas d'init container séparé)
+
+Le `Dockerfile` lance `npx prisma migrate deploy && exec node dist/main` directement dans le `CMD` du service applicatif, plutôt que de déléguer les migrations à un init container ou un job séparé (pattern recommandé en production multi-replica, pour éviter que plusieurs instances tentent d'appliquer les mêmes migrations en parallèle au démarrage).
+
+Ce choix est volontaire pour ce dépôt :
+
+- L'environnement cible du Contrôle 2 est **mono-replica** (`docker-compose.yml` d'Infra), donc le risque de concurrence entre plusieurs instances au démarrage ne s'applique pas.
+- Room-Service et Message-Service utilisent tous les deux exactement le même pattern. Changer uniquement User-Config-Service introduirait une incohérence de déploiement entre les trois services sans bénéfice réel dans ce contexte.
+
+Si le projet évolue vers un déploiement multi-replica (production réelle, Kubernetes, etc.), ce pattern devrait être revu **sur les trois services en même temps**, pas isolément sur celui-ci.
+
+### `recupererOuCreer` suppose qu'un `ConfigUtilisateur` n'est jamais supprimé
+
+Après un conflit de création concurrente (`P2002`), `recupererOuCreer` relit la ligne avec `findUniqueOrThrow` en supposant qu'elle existe toujours. Ceci n'est sûr que parce qu'**aucun code de ce service ne supprime jamais de `ConfigUtilisateur`** (pas de route `DELETE`, pas de cascade).
+
+Si une fonctionnalité de suppression est ajoutée un jour, cette hypothèse doit être revalidée et cette méthode adaptée (par exemple avec un `findUnique` + gestion explicite du cas absent, plutôt que `findUniqueOrThrow`).
+
+### Validation de `alias`/`theme`/`langue`/`modeNotification` : à la frontière (DTO) seulement, pas dans le service
+
+`ConfigUtilisateurService.mettreAJour` fait `dto.alias.trim()` sans revérifier que `dto.alias` n'est pas `null`, alors que rien n'empêche *syntaxiquement* TypeScript de laisser passer `null` (le type `alias?: string` n'est pas vérifié à l'exécution). Ceci est volontaire, pas un oubli :
+
+- Le seul appelant réel de `mettreAJour` est `ConfigUtilisateurController`, qui reçoit un DTO déjà passé par le `ValidationPipe` global. Le DTO utilise `@ValidateIf((o) => o.alias !== undefined)` pour rejeter explicitement `alias: null` en 400 **avant** d'atteindre le service (voir `mettre-a-jour-config.dto.ts` et `mettre-a-jour-config.dto.spec.ts`).
+- Dupliquer une garde `dto.alias == null` dans le service reviendrait à maintenir la même règle à deux endroits pour un cas qui ne peut pas se produire via le système réel aujourd'hui.
+- Ce serait aussi incohérent avec `theme`, `langue`, `modeNotification` (DTO) et `statut` (présence), qui reposent tous uniquement sur cette même frontière sans garde supplémentaire côté service — traiter `alias` différemment serait arbitraire.
+
+Ne pas ajouter cette garde « au cas où » côté service. Si un futur appelant interne (job, autre service, script de seed) doit appeler `mettreAJour` sans passer par le `ValidationPipe` HTTP, il doit construire un `MettreAJourConfigDto` valide (ou passer par `class-validator` lui-même), pas contourner la validation.
+
+### Identifiants de développement en clair dans `compose.local.yml`
+
+`compose.local.yml` contient `POSTGRES_PASSWORD: chatvardage` en clair, versionné dans le dépôt. C'est volontaire, pas une fuite de secret :
+
+- Ce PostgreSQL est **jetable** : il n'existe que dans un conteneur local, lié uniquement à `localhost`, recréé/détruit à volonté (`docker compose down -v`).
+- Ces identifiants ne protègent rien de sensible et ne sont réutilisés nulle part ailleurs (l'environnement d'équipe via `Infra` utilise ses propres identifiants distincts, non versionnés dans ce dépôt).
+- Room-Service utilise exactement le même pattern dans son propre `compose.local.yml`.
+
+Ne pas déplacer ça vers un `.env.local` : ça ajouterait de la friction pour du développement local sans protéger un vrai secret. Ce raisonnement ne s'applique **pas** à un secret réel (`JWT_SECRET`, mot de passe de l'environnement `Infra`, etc.) : ceux-là ne doivent jamais être versionnés.
+
+### `CORS_ORIGINS` n'est pas validé au démarrage
+
+`src/main.ts` découpe `process.env.CORS_ORIGINS` sur les virgules sans vérifier que chaque valeur est une URL bien formée. C'est volontaire :
+
+- `CORS_ORIGINS` est une variable de configuration posée par la personne qui déploie le service (via `Infra`/`docker-compose`), pas une entrée utilisateur ou attaquant — même niveau de confiance que `DATABASE_URL` ou `PORT`.
+- Une origine mal formée échoue déjà de façon sûre : le navigateur ne fera simplement jamais correspondre son en-tête `Origin` à une valeur invalide, donc le CORS reste fermé (pas de trou de sécurité).
+- Une validation stricte de type "doit être une URL" rejetterait aussi `*` (joker CORS légitime), ce qui casserait un cas d'usage volontaire si l'équipe veut un jour l'utiliser.
+
+Ne pas ajouter de validation de format ici. Si une vraie erreur de config CORS doit être détectée tôt, le faire au niveau du déploiement (`docker compose config`, revue de PR sur `Infra`), pas dans le code applicatif.
+
+### Pas de message d'erreur personnalisé quand un champ est explicitement `null`
+
+Les DTO utilisent les messages par défaut de `class-validator` (ex. `"alias must be a string"`, `"theme must be one of the following values: sombre, clair"`) plutôt qu'un message dédié du type « ce champ ne peut pas être null ». C'est volontaire :
+
+- Ces messages par défaut couvrent déjà correctement **toute** valeur invalide (nombre, objet, `null`, etc.), pas seulement `null` — c'est le comportement standard de validation partout ailleurs dans ce dépôt.
+- Créer un message spécifique au cas `null` introduirait un traitement incohérent : pourquoi `null` mériterait un message sur-mesure et pas un `42` ou un `{}` envoyé par erreur ?
+- Aucun autre DTO du projet (ici ou dans Room-Service/Message-Service) ne personnalise ses messages de validation.
+
+Ne pas ajouter de décorateur `@IsNotNull()` custom ou de message personnalisé pour ce cas précis sans étendre la même logique à toutes les validations du dépôt.
+
+## Base de données et Prisma
+
+Schéma principal : `ConfigUtilisateur` (une ligne par utilisateur, clé primaire `idUtilisateur`).
+
+Les migrations Prisma sont versionnées dans `prisma/migrations/`.
+
+Après une modification de `prisma/schema.prisma` :
+
+```bash
+npx prisma generate
+npx prisma migrate dev --name <nom_de_la_migration>
+```
+
+Ne jamais modifier une migration déjà appliquée pour masquer un changement. Créer une nouvelle migration.
+
+Dans Docker/déploiement, utiliser :
+
+```bash
+npx prisma migrate deploy
+```
+
+## Commandes obligatoires avant de terminer une modification
+
+Installer les dépendances de façon reproductible :
+
+```bash
+npm ci
+```
+
+Puis exécuter au minimum :
+
+```bash
+npm run lint
+npm test
+npm run test:e2e
+npm run build
+```
+
+Pour une modification importante de logique métier, exécuter aussi :
+
+```bash
+npm run test:cov
+```
+
+Pour vérifier le formatage :
+
+```bash
+npx prettier --check "src/**/*.ts" "test/**/*.ts"
+```
+
+`npm run format` modifie les fichiers; ne l'utiliser que lorsqu'un formatage automatique est souhaité.
+
+Un agent ne doit pas annoncer que le travail est terminé si une de ces vérifications échoue. Il doit corriger l'erreur ou indiquer clairement ce qui bloque.
+
+## Tests
+
+Framework officiel de ce dépôt : **Jest**.
+
+Lors d'un changement de comportement :
+
+1. ajouter ou modifier les tests concernés;
+2. couvrir le chemin nominal;
+3. couvrir les cas d'erreur importants (identité manquante, DTO vide, etc.);
+4. éviter les tests qui vérifient uniquement `toBeDefined()` lorsqu'un comportement peut être testé;
+5. mocker `PrismaService` dans les tests unitaires plutôt que dépendre d'une vraie base de données.
+
+Les tests E2E doivent refléter les routes actuelles du User-Config-Service.
+
+`test/app.e2e-spec.ts` mocke entièrement `PrismaService` (pas de vraie base de données) : c'est délibéré et conforme à la convention officielle de NestJS (le schematic `nest new` génère un fichier `*.e2e-spec.ts` selon exactement ce pattern — pipeline HTTP complète via `supertest`, providers remplacés). Room-Service fait de même. Ne pas renommer ce fichier en `*.integration-spec.ts` uniquement pour ce dépôt : ça introduirait une incohérence de convention avec les autres services sans bénéfice réel.
+
+## Langue du code
+
+Ce dépôt est rédigé **entièrement en français** : identifiants (variables, méthodes, champs Prisma, routes), messages d'erreur, commentaires et documentation. Seuls les mots-clés du langage/framework (`Controller`, `Service`, `Module`, `class-validator`, etc.) restent en anglais, car ils font partie de NestJS/TypeScript.
+
+## Lint, style et qualité
+
+- Respecter ESLint et Prettier existants.
+- Garder TypeScript typé; éviter `any` dans le code de production.
+- Garder les contrôleurs minces : validation HTTP/headers et délégation au service.
+- Garder la logique métier dans `ConfigUtilisateurService`.
+- Garder l'accès aux données via Prisma.
+- Valider les entrées avec les DTO et `class-validator`.
+- Retourner des erreurs HTTP NestJS explicites (`BadRequestException`, `UnauthorizedException`, etc.).
+- Ne pas laisser de code généré, mort ou de dépendances inutilisées.
+
+## Docker
+
+Pour tester ce dépôt seul :
+
+```bash
+docker compose -f compose.local.yml up --build
+```
+
+Le compose local doit lancer :
+
+- User-Config-Service sur `3005`;
+- PostgreSQL;
+- les migrations Prisma au démarrage du service.
+
+Healthcheck attendu :
+
+```bash
+curl http://localhost:3005/api/health
+```
+
+Le `compose.local.yml` sert au développement autonome. L'environnement final est orchestré par le dépôt `Infra`.
+
+Ne pas ajouter Redis ou de WebSocket à ce service : la configuration utilisateur est consultée en REST classique, sans temps réel pour l'instant.
+
+## Documentation
+
+Toute modification d'une route, d'un DTO, d'une variable d'environnement, d'un port ou d'une procédure de lancement doit mettre à jour :
+
+- Swagger/OpenAPI lorsque pertinent;
+- `README.md`;
+- `.env.example` lorsque pertinent;
+- ce fichier `AGENTS.md` si les règles de développement changent.
+
+Le README doit rester suffisant pour démarrer et tester le service sans connaissance implicite du projet.
+
+## Avant une Pull Request
+
+Vérifier :
+
+- [ ] le changement reste dans la responsabilité du User-Config-Service;
+- [ ] aucun secret ou `.env` réel n'est commité;
+- [ ] les migrations Prisma nécessaires sont présentes;
+- [ ] `npm run lint` passe;
+- [ ] `npm test` passe;
+- [ ] `npm run test:e2e` passe;
+- [ ] `npm run build` passe;
+- [ ] `npm run test:cov` a été vérifié pour les changements importants;
+- [ ] Swagger et README sont à jour;
+- [ ] le compose local fonctionne si Docker/DB ont été modifiés;
+- [ ] les changements incompatibles avec Frontend/Serveur-API sont documentés.
+
+Dans la description de PR, résumer les changements, indiquer les tests exécutés et signaler tout impact sur les autres dépôts.
+
+## Couverture obligatoire
+
+- `npm run test:cov` doit terminer avec 100 % Statements, Branches, Functions et Lines.
+- Le seuil Jest global est fixé à 100 % : toute baisse fait échouer la commande.
+- Toute nouvelle branche de logique doit être accompagnée de tests couvrant succès et erreurs.
+- Avant une PR : `npm run lint`, `npm test`, `npm run test:cov`, `npm run test:e2e`, `npm run build`.
