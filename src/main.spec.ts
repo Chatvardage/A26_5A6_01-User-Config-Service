@@ -6,8 +6,10 @@ const app = {
   listen,
 };
 
+const create = jest.fn().mockResolvedValue(app);
+
 jest.mock('@nestjs/core', () => ({
-  NestFactory: { create: jest.fn().mockResolvedValue(app) },
+  NestFactory: { create },
 }));
 
 const build = jest.fn().mockReturnValue({});
@@ -79,17 +81,19 @@ describe('bootstrap', () => {
     expect(listen).toHaveBeenCalledWith(3005, '0.0.0.0');
   });
 
-  it('rejette un PORT non numérique sans démarrer le serveur', async () => {
+  it('rejette un PORT non numérique sans créer l’application ni démarrer le serveur', async () => {
     process.env.PORT = 'abc';
     await expect(bootstrap()).rejects.toThrow(
       'Variable d\'environnement PORT invalide : "abc"',
     );
+    expect(create).not.toHaveBeenCalled();
     expect(listen).not.toHaveBeenCalled();
   });
 
   it('rejette un PORT hors intervalle', async () => {
     process.env.PORT = '70000';
     await expect(bootstrap()).rejects.toThrow(/PORT invalide/);
+    expect(create).not.toHaveBeenCalled();
     expect(listen).not.toHaveBeenCalled();
   });
 });

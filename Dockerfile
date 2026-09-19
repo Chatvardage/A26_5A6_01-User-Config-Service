@@ -24,4 +24,6 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
 EXPOSE 3005
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+# Migration au démarrage acceptée en mono-replica (voir AGENTS.md) ; à revoir
+# (init container / job dédié) si ce service passe un jour en multi-replica.
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/main"]

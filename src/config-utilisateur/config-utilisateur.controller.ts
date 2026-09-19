@@ -12,6 +12,8 @@ import { ConfigUtilisateurService } from './config-utilisateur.service';
 import { DefinirPresenceDto } from './dto/definir-presence.dto';
 import { MettreAJourConfigDto } from './dto/mettre-a-jour-config.dto';
 
+const LONGUEUR_MAX_ID_UTILISATEUR = 255;
+
 @ApiTags('Configuration utilisateur')
 @ApiHeader({
   name: 'x-user-id',
@@ -67,7 +69,7 @@ export class ConfigUtilisateurController {
 
   private exigerIdUtilisateur(idUtilisateur?: string): string {
     const identifiant = idUtilisateur?.trim();
-    if (!identifiant) {
+    if (!identifiant || identifiant.length > LONGUEUR_MAX_ID_UTILISATEUR) {
       throw new UnauthorizedException('Utilisateur non authentifié');
     }
     return identifiant;

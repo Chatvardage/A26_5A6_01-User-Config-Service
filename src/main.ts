@@ -4,6 +4,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 export async function bootstrap(): Promise<void> {
+  const port = Number(process.env.PORT || '3005');
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(
+      `Variable d'environnement PORT invalide : "${process.env.PORT}"`,
+    );
+  }
+
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api');
@@ -29,13 +36,6 @@ export async function bootstrap(): Promise<void> {
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
-
-  const port = Number(process.env.PORT || '3005');
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(
-      `Variable d'environnement PORT invalide : "${process.env.PORT}"`,
-    );
-  }
 
   await app.listen(port, '0.0.0.0');
 }

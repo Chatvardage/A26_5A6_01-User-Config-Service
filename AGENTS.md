@@ -90,6 +90,17 @@ Dans `ConfigUtilisateurService.definirPresence`, `vuLaDerniereFois` est réécri
 
 Ne pas « corriger » ce comportement sans revalider l'intention produit avec l'équipe.
 
+### Migration Prisma exécutée dans le `CMD` du conteneur (pas d'init container séparé)
+
+Le `Dockerfile` lance `npx prisma migrate deploy && exec node dist/main` directement dans le `CMD` du service applicatif, plutôt que de déléguer les migrations à un init container ou un job séparé (pattern recommandé en production multi-replica, pour éviter que plusieurs instances tentent d'appliquer les mêmes migrations en parallèle au démarrage).
+
+Ce choix est volontaire pour ce dépôt :
+
+- L'environnement cible du Contrôle 2 est **mono-replica** (`docker-compose.yml` d'Infra), donc le risque de concurrence entre plusieurs instances au démarrage ne s'applique pas.
+- Room-Service et Message-Service utilisent tous les deux exactement le même pattern. Changer uniquement User-Config-Service introduirait une incohérence de déploiement entre les trois services sans bénéfice réel dans ce contexte.
+
+Si le projet évolue vers un déploiement multi-replica (production réelle, Kubernetes, etc.), ce pattern devrait être revu **sur les trois services en même temps**, pas isolément sur celui-ci.
+
 ## Base de données et Prisma
 
 Schéma principal : `ConfigUtilisateur` (une ligne par utilisateur, clé primaire `idUtilisateur`).

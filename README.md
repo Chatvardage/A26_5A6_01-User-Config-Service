@@ -200,6 +200,8 @@ Dans Docker ou en déploiement :
 npx prisma migrate deploy
 ```
 
+Cette commande est lancée directement dans le `CMD` du conteneur (voir `Dockerfile`), avant de démarrer le serveur. C'est adapté à un déploiement **mono-replica** comme celui du Contrôle 2 ; en multi-replica, plusieurs instances démarrant simultanément pourraient tenter d'appliquer les mêmes migrations en parallèle. Voir `AGENTS.md` (« Décisions de conception à préserver ») pour le détail de ce choix et les conditions dans lesquelles le revoir.
+
 ## Healthcheck
 
 ```bash

@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ConfigUtilisateur, StatutPresence } from '@prisma/client';
+import { ConfigUtilisateur, Prisma, StatutPresence } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MettreAJourConfigDto } from './dto/mettre-a-jour-config.dto';
 import { ConfigUtilisateurResponse } from './types/config-utilisateur-response.type';
+
+const CODE_CONTRAINTE_UNIQUE = 'P2002';
 
 @Injectable()
 export class ConfigUtilisateurService {
@@ -11,12 +13,32 @@ export class ConfigUtilisateurService {
   async recupererOuCreer(
     idUtilisateur: string,
   ): Promise<ConfigUtilisateurResponse> {
-    const config = await this.prisma.configUtilisateur.upsert({
+    const existant = await this.prisma.configUtilisateur.findUnique({
       where: { idUtilisateur },
-      update: {},
-      create: { idUtilisateur },
     });
-    return this.versReponse(config);
+    if (existant) {
+      return this.versReponse(existant);
+    }
+
+    try {
+      const config = await this.prisma.configUtilisateur.create({
+        data: { idUtilisateur },
+      });
+      return this.versReponse(config);
+    } catch (erreur) {
+      // Deux premières requêtes concurrentes du même utilisateur peuvent
+      // toutes deux tenter la création : on relit la ligne créée par l'autre.
+      if (
+        erreur instanceof Prisma.PrismaClientKnownRequestError &&
+        erreur.code === CODE_CONTRAINTE_UNIQUE
+      ) {
+        const config = await this.prisma.configUtilisateur.findUniqueOrThrow({
+          where: { idUtilisateur },
+        });
+        return this.versReponse(config);
+      }
+      throw erreur;
+    }
   }
 
   async mettreAJour(

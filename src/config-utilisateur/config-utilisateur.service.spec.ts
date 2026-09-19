@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigUtilisateurService } from './config-utilisateur.service';
 
@@ -23,19 +24,23 @@ describe('ConfigUtilisateurService', () => {
 
   beforeEach(() => {
     prisma = {
-      configUtilisateur: { upsert: jest.fn() },
+      configUtilisateur: {
+        upsert: jest.fn(),
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
+      },
     };
     service = new ConfigUtilisateurService(prisma as PrismaService);
   });
 
-  it('recupererOuCreer crée la config par défaut si absente', async () => {
-    prisma.configUtilisateur.upsert.mockResolvedValue(makeConfig());
+  it('recupererOuCreer retourne la config existante sans écrire en base', async () => {
+    prisma.configUtilisateur.findUnique.mockResolvedValue(makeConfig());
     const result = await service.recupererOuCreer('user-1');
-    expect(prisma.configUtilisateur.upsert).toHaveBeenCalledWith({
+    expect(prisma.configUtilisateur.findUnique).toHaveBeenCalledWith({
       where: { idUtilisateur: 'user-1' },
-      update: {},
-      create: { idUtilisateur: 'user-1' },
     });
+    expect(prisma.configUtilisateur.create).not.toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
         type: 'configUtilisateur',
@@ -44,6 +49,51 @@ describe('ConfigUtilisateurService', () => {
         vuLaDerniereFois: null,
       }),
     );
+  });
+
+  it('recupererOuCreer crée la config par défaut si absente', async () => {
+    prisma.configUtilisateur.findUnique.mockResolvedValue(null);
+    prisma.configUtilisateur.create.mockResolvedValue(makeConfig());
+    const result = await service.recupererOuCreer('user-1');
+    expect(prisma.configUtilisateur.create).toHaveBeenCalledWith({
+      data: { idUtilisateur: 'user-1' },
+    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        type: 'configUtilisateur',
+        idUtilisateur: 'user-1',
+        theme: 'sombre',
+      }),
+    );
+  });
+
+  it('recupererOuCreer relit la config si une requête concurrente l’a créée en premier', async () => {
+    prisma.configUtilisateur.findUnique.mockResolvedValue(null);
+    prisma.configUtilisateur.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('conflit', {
+        code: 'P2002',
+        clientVersion: '6.16.0',
+      }),
+    );
+    prisma.configUtilisateur.findUniqueOrThrow.mockResolvedValue(makeConfig());
+
+    const result = await service.recupererOuCreer('user-1');
+
+    expect(prisma.configUtilisateur.findUniqueOrThrow).toHaveBeenCalledWith({
+      where: { idUtilisateur: 'user-1' },
+    });
+    expect(result.idUtilisateur).toBe('user-1');
+  });
+
+  it('recupererOuCreer relance toute autre erreur de création', async () => {
+    prisma.configUtilisateur.findUnique.mockResolvedValue(null);
+    const erreurInattendue = new Error('panne de connexion');
+    prisma.configUtilisateur.create.mockRejectedValue(erreurInattendue);
+
+    await expect(service.recupererOuCreer('user-1')).rejects.toBe(
+      erreurInattendue,
+    );
+    expect(prisma.configUtilisateur.findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
   it('mettreAJour refuse un DTO vide', async () => {

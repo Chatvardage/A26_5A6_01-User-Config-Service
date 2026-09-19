@@ -16,6 +16,17 @@ describe('User Config Service (e2e)', () => {
       .useValue({
         $queryRaw: queryRaw,
         configUtilisateur: {
+          findUnique: jest.fn().mockResolvedValue({
+            idUtilisateur: 'user-1',
+            alias: null,
+            theme: 'sombre',
+            langue: 'fr',
+            statutPresence: 'horsLigne',
+            vuLaDerniereFois: null,
+            modeNotification: 'systeme',
+            creeLe: new Date(),
+            misAJourLe: new Date(),
+          }),
           upsert: jest.fn().mockResolvedValue({
             idUtilisateur: 'user-1',
             alias: null,
@@ -107,6 +118,20 @@ describe('User Config Service (e2e)', () => {
       .patch('/api/config-utilisateur')
       .set('x-user-id', 'user-1')
       .send({ theme: 'bleu' })
+      .expect(400));
+
+  it('PATCH /api/config-utilisateur rejette un alias explicitement null', () =>
+    request(app.getHttpServer())
+      .patch('/api/config-utilisateur')
+      .set('x-user-id', 'user-1')
+      .send({ alias: null })
+      .expect(400));
+
+  it('PATCH /api/config-utilisateur rejette un thème explicitement null', () =>
+    request(app.getHttpServer())
+      .patch('/api/config-utilisateur')
+      .set('x-user-id', 'user-1')
+      .send({ theme: null })
       .expect(400));
 
   it('PUT /api/config-utilisateur/presence rejette un statut inconnu', () =>

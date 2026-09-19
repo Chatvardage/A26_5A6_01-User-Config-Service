@@ -38,4 +38,15 @@ describe('ConfigUtilisateurController', () => {
   it.each([undefined, '', '   '])('refuse une identité invalide %p', (id) => {
     expect(() => c.recupererMaConfig(id)).toThrow(UnauthorizedException);
   });
+
+  it('refuse un identifiant excessivement long', () => {
+    expect(() => c.recupererMaConfig('u'.repeat(256))).toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('accepte un identifiant à la limite autorisée', () => {
+    c.recupererMaConfig('u'.repeat(255));
+    expect(s.recupererOuCreer).toHaveBeenCalledWith('u'.repeat(255));
+  });
 });
