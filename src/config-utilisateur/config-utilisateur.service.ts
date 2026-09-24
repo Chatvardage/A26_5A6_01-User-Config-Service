@@ -3,8 +3,15 @@ import { ConfigUtilisateur, Prisma, StatutPresence } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MettreAJourConfigDto } from './dto/mettre-a-jour-config.dto';
 import { ConfigUtilisateurResponse } from './types/config-utilisateur-response.type';
+import { ProfilPublicResponse } from './types/profil-public-response.type';
 
 const CODE_CONTRAINTE_UNIQUE = 'P2002';
+
+// Un client connecté renvoie sa présence (PUT /presence) toutes les ~20 s,
+// ce qui rafraîchit vuLaDerniereFois. Au-delà de ce délai sans signe de vie
+// (app fermée, plantage, réseau coupé), l'utilisateur est considéré absent
+// même si son statut choisi est encore `enLigne`.
+export const DELAI_PRESENCE_ACTIVE_MS = 90_000;
 
 @Injectable()
 export class ConfigUtilisateurService {
@@ -52,7 +59,8 @@ export class ConfigUtilisateurService {
       dto.alias === undefined &&
       dto.theme === undefined &&
       dto.langue === undefined &&
-      dto.modeNotification === undefined
+      dto.modeNotification === undefined &&
+      dto.avatar === undefined
     ) {
       throw new BadRequestException('Aucune modification fournie');
     }
@@ -71,6 +79,8 @@ export class ConfigUtilisateurService {
       ...(dto.modeNotification !== undefined
         ? { modeNotification: dto.modeNotification }
         : {}),
+      // Même convention que l'alias : chaîne vide = retirer l'avatar.
+      ...(dto.avatar !== undefined ? { avatar: dto.avatar || null } : {}),
     };
 
     const config = await this.prisma.configUtilisateur.upsert({
@@ -96,6 +106,43 @@ export class ConfigUtilisateurService {
     return this.versReponse(config);
   }
 
+  /**
+   * Profils publics (alias, avatar, présence) d'autres utilisateurs. Les
+   * identifiants sans configuration sont simplement absents du résultat : on
+   * ne crée JAMAIS de ligne pour quelqu'un d'autre (voir recupererOuCreer).
+   */
+  async listerProfilsPublics(
+    ids: string[],
+    inclureAvatar = true,
+    maintenant: Date = new Date(),
+  ): Promise<ProfilPublicResponse[]> {
+    const configs = await this.prisma.configUtilisateur.findMany({
+      where: { idUtilisateur: { in: ids } },
+      select: {
+        idUtilisateur: true,
+        alias: true,
+        avatar: inclureAvatar,
+        statutPresence: true,
+        vuLaDerniereFois: true,
+      },
+    });
+    return configs.map((config) => ({
+      type: 'profilPublic' as const,
+      idUtilisateur: config.idUtilisateur,
+      alias: config.alias,
+      ...(inclureAvatar ? { avatar: config.avatar ?? null } : {}),
+      statutPresence: config.statutPresence,
+      vuLaDerniereFois: config.vuLaDerniereFois
+        ? config.vuLaDerniereFois.toISOString()
+        : null,
+      actif:
+        config.statutPresence === StatutPresence.enLigne &&
+        config.vuLaDerniereFois !== null &&
+        maintenant.getTime() - config.vuLaDerniereFois.getTime() <=
+          DELAI_PRESENCE_ACTIVE_MS,
+    }));
+  }
+
   private versReponse(config: ConfigUtilisateur): ConfigUtilisateurResponse {
     return {
       type: 'configUtilisateur',
@@ -108,6 +155,7 @@ export class ConfigUtilisateurService {
         ? config.vuLaDerniereFois.toISOString()
         : null,
       modeNotification: config.modeNotification,
+      avatar: config.avatar,
     };
   }
 }

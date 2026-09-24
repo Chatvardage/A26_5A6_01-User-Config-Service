@@ -5,13 +5,16 @@ import {
   Headers,
   Patch,
   Put,
+  Query,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ConfigUtilisateurService } from './config-utilisateur.service';
 import { DefinirPresenceDto } from './dto/definir-presence.dto';
+import { ListerProfilsPublicsDto } from './dto/lister-profils-publics.dto';
 import { MettreAJourConfigDto } from './dto/mettre-a-jour-config.dto';
 import { ConfigUtilisateurResponse } from './types/config-utilisateur-response.type';
+import { ProfilPublicResponse } from './types/profil-public-response.type';
 
 // Borne la taille de l'en-tête transmis par la Gateway sans imposer de format
 // d'identifiant propre au service Authentification.
@@ -43,10 +46,29 @@ export class ConfigUtilisateurController {
     );
   }
 
+  // Déclarée avant toute route paramétrée : `publiques` est un segment fixe.
+  @Get('publiques')
+  @ApiOperation({
+    summary:
+      "Profils publics d'autres utilisateurs : alias, avatar et présence (effective via `actif`)",
+  })
+  listerProfilsPublics(
+    @Query() requete: ListerProfilsPublicsDto,
+    @Headers('x-user-id') idUtilisateur?: string,
+  ): Promise<ProfilPublicResponse[]> {
+    // Réservé aux utilisateurs authentifiés, même si les données sont
+    // publiques entre membres de Chatvardage.
+    this.exigerIdUtilisateur(idUtilisateur);
+    return this.configUtilisateurService.listerProfilsPublics(
+      requete.ids,
+      requete.inclureAvatar ?? true,
+    );
+  }
+
   @Patch()
   @ApiOperation({
     summary:
-      "Met à jour l'alias, le thème, la langue ou le mode de notification de l'utilisateur connecté",
+      "Met à jour l'alias, le thème, la langue, le mode de notification ou l'avatar de l'utilisateur connecté",
   })
   mettreAJourMaConfig(
     @Body() dto: MettreAJourConfigDto,

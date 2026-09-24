@@ -7,10 +7,12 @@ describe('ConfigUtilisateurController', () => {
 
   beforeEach(() => {
     s = Object.fromEntries(
-      ['recupererOuCreer', 'mettreAJour', 'definirPresence'].map((k) => [
-        k,
-        jest.fn().mockResolvedValue(k),
-      ]),
+      [
+        'recupererOuCreer',
+        'mettreAJour',
+        'definirPresence',
+        'listerProfilsPublics',
+      ].map((k) => [k, jest.fn().mockResolvedValue(k)]),
     );
     c = new ConfigUtilisateurController(s);
   });
@@ -33,6 +35,17 @@ describe('ConfigUtilisateurController', () => {
   it('definirMaPresence délègue au service', () => {
     c.definirMaPresence({ statut: 'enLigne' }, 'user-1');
     expect(s.definirPresence).toHaveBeenCalledWith('user-1', 'enLigne');
+  });
+
+  it('listerProfilsPublics délègue au service (avatar inclus par défaut)', () => {
+    c.listerProfilsPublics({ ids: ['a', 'b'] }, 'user-1');
+    expect(s.listerProfilsPublics).toHaveBeenCalledWith(['a', 'b'], true);
+  });
+
+  it('listerProfilsPublics exige une identité authentifiée', () => {
+    expect(() => c.listerProfilsPublics({ ids: ['a'] }, undefined)).toThrow(
+      UnauthorizedException,
+    );
   });
 
   it.each([undefined, '', '   '])('refuse une identité invalide %p', (id) => {

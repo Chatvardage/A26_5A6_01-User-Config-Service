@@ -2,8 +2,11 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { verifierSecretsProduction } from './common/secrets-production';
 
 export async function bootstrap(): Promise<void> {
+  // Avant tout : pas de démarrage en production avec des secrets de dev.
+  verifierSecretsProduction();
   const port = Number(process.env.PORT || '3005');
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error(

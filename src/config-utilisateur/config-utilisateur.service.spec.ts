@@ -13,6 +13,7 @@ const makeConfig = (overrides: any = {}) => ({
   statutPresence: 'horsLigne' as const,
   vuLaDerniereFois: null,
   modeNotification: 'systeme' as const,
+  avatar: null,
   creeLe: maintenant,
   misAJourLe: maintenant,
   ...overrides,
@@ -29,6 +30,7 @@ describe('ConfigUtilisateurService', () => {
         findUnique: jest.fn(),
         create: jest.fn(),
         findUniqueOrThrow: jest.fn(),
+        findMany: jest.fn(),
       },
     };
     service = new ConfigUtilisateurService(prisma as PrismaService);
@@ -115,6 +117,28 @@ describe('ConfigUtilisateurService', () => {
     });
   });
 
+  it('mettreAJour enregistre un avatar et le renvoie', async () => {
+    const avatar = 'data:image/png;base64,AAAA';
+    prisma.configUtilisateur.upsert.mockResolvedValue(makeConfig({ avatar }));
+    const result = await service.mettreAJour('user-1', { avatar });
+    expect(prisma.configUtilisateur.upsert).toHaveBeenCalledWith({
+      where: { idUtilisateur: 'user-1' },
+      update: { avatar },
+      create: { idUtilisateur: 'user-1', avatar },
+    });
+    expect(result.avatar).toBe(avatar);
+  });
+
+  it('mettreAJour transforme un avatar vide en null (retrait)', async () => {
+    prisma.configUtilisateur.upsert.mockResolvedValue(makeConfig());
+    await service.mettreAJour('user-1', { avatar: '' });
+    expect(prisma.configUtilisateur.upsert).toHaveBeenCalledWith({
+      where: { idUtilisateur: 'user-1' },
+      update: { avatar: null },
+      create: { idUtilisateur: 'user-1', avatar: null },
+    });
+  });
+
   it('mettreAJour transforme un alias vide en null', async () => {
     prisma.configUtilisateur.upsert.mockResolvedValue(makeConfig());
     await service.mettreAJour('user-1', { alias: '   ' });
@@ -167,5 +191,100 @@ describe('ConfigUtilisateurService', () => {
     );
     expect(result.statutPresence).toBe('enLigne');
     expect(result.vuLaDerniereFois).toBe(maintenant.toISOString());
+  });
+
+  describe('listerProfilsPublics', () => {
+    const il_y_a = (ms: number) => new Date(maintenant.getTime() - ms);
+
+    it('ne sélectionne que les champs publics, avec avatar par défaut', async () => {
+      prisma.configUtilisateur.findMany.mockResolvedValue([]);
+      await service.listerProfilsPublics(['a', 'b'], true, maintenant);
+      expect(prisma.configUtilisateur.findMany).toHaveBeenCalledWith({
+        where: { idUtilisateur: { in: ['a', 'b'] } },
+        select: {
+          idUtilisateur: true,
+          alias: true,
+          avatar: true,
+          statutPresence: true,
+          vuLaDerniereFois: true,
+        },
+      });
+    });
+
+    it("inclut l'avatar et calcule la présence à l'instant présent par défaut", async () => {
+      prisma.configUtilisateur.findMany.mockResolvedValue([
+        makeConfig({
+          idUtilisateur: 'a',
+          statutPresence: 'enLigne',
+          vuLaDerniereFois: new Date(),
+        }),
+      ]);
+      const [profil] = await service.listerProfilsPublics(['a']);
+      expect(
+        prisma.configUtilisateur.findMany.mock.calls[0][0].select.avatar,
+      ).toBe(true);
+      expect(profil).toHaveProperty('avatar');
+      expect(profil.actif).toBe(true);
+    });
+
+    it("omet l'avatar si inclureAvatar=false", async () => {
+      prisma.configUtilisateur.findMany.mockResolvedValue([
+        makeConfig({ idUtilisateur: 'a' }),
+      ]);
+      const [profil] = await service.listerProfilsPublics(
+        ['a'],
+        false,
+        maintenant,
+      );
+      expect(
+        prisma.configUtilisateur.findMany.mock.calls[0][0].select.avatar,
+      ).toBe(false);
+      expect(profil).not.toHaveProperty('avatar');
+      expect(profil).not.toHaveProperty('theme');
+    });
+
+    it.each([
+      ['enLigne récent', 'enLigne', il_y_a(30_000), true],
+      ['enLigne à la limite', 'enLigne', il_y_a(90_000), true],
+      ['enLigne périmé (app fermée)', 'enLigne', il_y_a(91_000), false],
+      ['enLigne jamais vu', 'enLigne', null, false],
+      ['horsLigne récent', 'horsLigne', il_y_a(1_000), false],
+    ])(
+      'actif : %s',
+      async (_cas, statutPresence, vuLaDerniereFois, attendu) => {
+        prisma.configUtilisateur.findMany.mockResolvedValue([
+          makeConfig({ idUtilisateur: 'a', statutPresence, vuLaDerniereFois }),
+        ]);
+        const [profil] = await service.listerProfilsPublics(
+          ['a'],
+          true,
+          maintenant,
+        );
+        expect(profil.actif).toBe(attendu);
+      },
+    );
+
+    it('renvoie alias, avatar et type profilPublic', async () => {
+      prisma.configUtilisateur.findMany.mockResolvedValue([
+        makeConfig({
+          idUtilisateur: 'a',
+          alias: 'Bob',
+          avatar: 'data:image/png;base64,AA',
+        }),
+      ]);
+      expect(
+        await service.listerProfilsPublics(['a'], true, maintenant),
+      ).toEqual([
+        {
+          type: 'profilPublic',
+          idUtilisateur: 'a',
+          alias: 'Bob',
+          avatar: 'data:image/png;base64,AA',
+          statutPresence: 'horsLigne',
+          vuLaDerniereFois: null,
+          actif: false,
+        },
+      ]);
+    });
   });
 });

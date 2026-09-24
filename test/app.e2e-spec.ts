@@ -18,6 +18,7 @@ describe('User Config Service (e2e)', () => {
     statutPresence: 'horsLigne',
     vuLaDerniereFois: null,
     modeNotification: 'systeme',
+    avatar: null,
     creeLe: new Date(),
     misAJourLe: new Date(),
   });
@@ -30,10 +31,24 @@ describe('User Config Service (e2e)', () => {
       statutPresence: 'horsLigne',
       vuLaDerniereFois: null,
       modeNotification: 'systeme',
+      avatar: null,
       creeLe: new Date(),
       misAJourLe: new Date(),
       ...data,
     }),
+  );
+  const findMany = jest.fn().mockImplementation(({ where, select }) =>
+    Promise.resolve(
+      where.idUtilisateur.in
+        .filter((id: string) => id !== 'inconnu')
+        .map((id: string) => ({
+          idUtilisateur: id,
+          alias: null,
+          ...(select.avatar ? { avatar: null } : {}),
+          statutPresence: 'enLigne',
+          vuLaDerniereFois: new Date(),
+        })),
+    ),
   );
   const upsert = jest.fn().mockImplementation(({ where, update }) =>
     Promise.resolve({
@@ -44,6 +59,7 @@ describe('User Config Service (e2e)', () => {
       statutPresence: 'horsLigne',
       vuLaDerniereFois: null,
       modeNotification: 'systeme',
+      avatar: null,
       creeLe: new Date(),
       misAJourLe: new Date(),
       ...update,
@@ -58,6 +74,7 @@ describe('User Config Service (e2e)', () => {
       .useValue({
         $queryRaw: queryRaw,
         configUtilisateur: {
+          findMany,
           findUnique,
           create,
           upsert,
@@ -162,6 +179,75 @@ describe('User Config Service (e2e)', () => {
       .patch('/api/config-utilisateur')
       .send({ alias: 'x' })
       .expect(401));
+
+  it('PATCH /api/config-utilisateur accepte un avatar proche de la taille maximale', () => {
+    // Vérifie que la limite du DTO tient bien sous la limite JSON d'Express.
+    const avatar = `data:image/webp;base64,${'A'.repeat(89_000)}`;
+    return request(app.getHttpServer())
+      .patch('/api/config-utilisateur')
+      .set('x-user-id', 'user-1')
+      .send({ avatar })
+      .expect(200)
+      .expect(({ body }) => expect(body.avatar).toBe(avatar));
+  });
+
+  it('PATCH /api/config-utilisateur rejette un avatar SVG', () =>
+    request(app.getHttpServer())
+      .patch('/api/config-utilisateur')
+      .set('x-user-id', 'user-1')
+      .send({ avatar: 'data:image/svg+xml;base64,PHN2Zz4=' })
+      .expect(400));
+
+  it('GET /api/config-utilisateur/publiques renvoie les profils connus', () =>
+    request(app.getHttpServer())
+      .get(
+        '/api/config-utilisateur/publiques?ids=user-2, user-3,user-2,inconnu',
+      )
+      .set('x-user-id', 'user-1')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(findMany).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            where: { idUtilisateur: { in: ['user-2', 'user-3', 'inconnu'] } },
+          }),
+        );
+        expect(
+          body.map((p: { idUtilisateur: string }) => p.idUtilisateur),
+        ).toEqual(['user-2', 'user-3']);
+        expect(body[0]).toMatchObject({
+          type: 'profilPublic',
+          actif: true,
+          avatar: null,
+        });
+      }));
+
+  it('GET /api/config-utilisateur/publiques?inclureAvatar=false omet les avatars', () =>
+    request(app.getHttpServer())
+      .get('/api/config-utilisateur/publiques?ids=user-2&inclureAvatar=false')
+      .set('x-user-id', 'user-1')
+      .expect(200)
+      .expect(({ body }) => expect(body[0]).not.toHaveProperty('avatar')));
+
+  it('GET /api/config-utilisateur/publiques exige une identité authentifiée', () =>
+    request(app.getHttpServer())
+      .get('/api/config-utilisateur/publiques?ids=user-2')
+      .expect(401));
+
+  it.each([
+    ['sans ids', ''],
+    ['ids vides', '?ids=,,'],
+    [
+      'trop d’ids',
+      `?ids=${Array.from({ length: 101 }, (_, i) => `u${i}`).join(',')}`,
+    ],
+  ])(
+    'GET /api/config-utilisateur/publiques rejette une requête %s',
+    (_cas, query) =>
+      request(app.getHttpServer())
+        .get(`/api/config-utilisateur/publiques${query}`)
+        .set('x-user-id', 'user-1')
+        .expect(400),
+  );
 
   it('PATCH /api/config-utilisateur rejette un alias trop long', () =>
     request(app.getHttpServer())

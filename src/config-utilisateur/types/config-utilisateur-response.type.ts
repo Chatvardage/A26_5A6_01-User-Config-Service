@@ -14,4 +14,5 @@ export interface ConfigUtilisateurResponse {
   statutPresence: StatutPresence;
   vuLaDerniereFois: string | null;
   modeNotification: ModeNotification;
+  avatar: string | null;
 }
