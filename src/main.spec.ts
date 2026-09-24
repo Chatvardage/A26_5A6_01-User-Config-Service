@@ -3,6 +3,7 @@ const app = {
   setGlobalPrefix: jest.fn(),
   enableCors: jest.fn(),
   useGlobalPipes: jest.fn(),
+  enableShutdownHooks: jest.fn(),
   listen,
 };
 
@@ -55,6 +56,7 @@ describe('bootstrap', () => {
       origin: ['http://exemple.test', 'http://autre.test'],
     });
     expect(app.useGlobalPipes).toHaveBeenCalled();
+    expect(app.enableShutdownHooks).toHaveBeenCalled();
     expect(builder.setTitle).toHaveBeenCalledWith(
       'Chatvardage User Config Service',
     );

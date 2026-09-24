@@ -36,7 +36,7 @@ Le User-Config-Service ne doit **pas** prendre en charge l'authentification, les
 Le service doit conserver la responsabilité de :
 
 - lire la configuration d'un utilisateur (créée avec des valeurs par défaut si elle n'existe pas encore);
-- mettre à jour l'alias, le thème, la langue et le mode de notification;
+- mettre à jour l'alias, le thème, la langue, le mode de notification et l'avatar;
 - définir le statut de présence (`enLigne` / `horsLigne`) et l'horodatage de dernière activité;
 - persister ces préférences dans PostgreSQL, une ligne par utilisateur;
 - exposer un healthcheck pour le service et PostgreSQL.
@@ -50,10 +50,13 @@ Le service est destiné à être appelé derrière `Serveur-API`.
 Le Gateway transmet l'identité déjà validée avec :
 
 ```http
+x-internal-token: <INTERNAL_SERVICE_TOKEN>
 x-user-id: <id utilisateur>
 ```
 
-Ne jamais considérer cet en-tête comme sûr si le service devient directement exposé à Internet. Dans l'architecture finale, le User-Config-Service doit rester un service interne.
+`InternalTokenGuard` (`src/internal/`) protège toutes les routes sauf `/api/health` : `x-user-id` n'est cru qu'avec le bon jeton interne. Ne jamais retirer ce garde d'une route qui lit `x-user-id`. Dans l'architecture finale, le User-Config-Service doit en plus rester un service interne.
+
+Authentification appelle `DELETE /api/internal/users/:userId` (même jeton) après la suppression d'un compte.
 
 Toutes les routes sont sous `/api`. Swagger est exposé sous `/docs`.
 
@@ -70,11 +73,12 @@ Le format retourné par l'API doit rester stable, sauf changement coordonné ent
   langue: 'fr' | 'en',
   statutPresence: 'enLigne' | 'horsLigne',
   vuLaDerniereFois: string | null,
-  modeNotification: 'systeme' | 'discret' | 'aucune'
+  modeNotification: 'systeme' | 'discret' | 'aucune',
+  avatar: string | null // data URL base64 PNG/JPEG/WebP, ou null
 }
 ```
 
-Ce format doit permettre de remplacer, côté Frontend, la simulation locale actuelle (`localStorage`, IPC Electron `theme:*`, `langue:*`, `presence:*`, `NotifPrefs`) par de vrais appels à ce service.
+Le Frontend consomme ce format via le Gateway : `main.js` charge la configuration à l'ouverture de session et y enregistre chaque changement (thème et langue depuis la page profil, langue choisie sur l'écran de connexion/inscription, présence, mode de notification). Tout changement de ce format doit être coordonné avec le Frontend.
 
 Les `idUtilisateur` restent des chaînes. Ne pas ajouter de table `User` ou de clé étrangère vers un utilisateur : les utilisateurs appartiennent au service d'authentification.
 
@@ -101,11 +105,9 @@ Ce choix est volontaire pour ce dépôt :
 
 Si le projet évolue vers un déploiement multi-replica (production réelle, Kubernetes, etc.), ce pattern devrait être revu **sur les trois services en même temps**, pas isolément sur celui-ci.
 
-### `recupererOuCreer` suppose qu'un `ConfigUtilisateur` n'est jamais supprimé
+### `recupererOuCreer` et la suppression d'un compte
 
-Après un conflit de création concurrente (`P2002`), `recupererOuCreer` relit la ligne avec `findUniqueOrThrow` en supposant qu'elle existe toujours. Ceci n'est sûr que parce qu'**aucun code de ce service ne supprime jamais de `ConfigUtilisateur`** (pas de route `DELETE`, pas de cascade).
-
-Si une fonctionnalité de suppression est ajoutée un jour, cette hypothèse doit être revalidée et cette méthode adaptée (par exemple avec un `findUnique` + gestion explicite du cas absent, plutôt que `findUniqueOrThrow`).
+Après un conflit de création concurrente (`P2002`), `recupererOuCreer` relit la ligne avec `findUnique`. Depuis la route interne de suppression de compte, cette ligne peut avoir disparu entre-temps : la méthode renvoie alors 409 plutôt qu'une erreur 500.
 
 ### Validation de `alias`/`theme`/`langue`/`modeNotification` : à la frontière (DTO) seulement, pas dans le service
 
@@ -146,6 +148,25 @@ Les DTO utilisent les messages par défaut de `class-validator` (ex. `"alias mus
 - Aucun autre DTO du projet (ici ou dans Room-Service/Message-Service) ne personnalise ses messages de validation.
 
 Ne pas ajouter de décorateur `@IsNotNull()` custom ou de message personnalisé pour ce cas précis sans étendre la même logique à toutes les validations du dépôt.
+
+### Avatar stocké en data URL dans la colonne `avatar`
+
+L'image de profil est une data URL base64 (`data:image/png|jpeg|webp;base64,...`) stockée telle quelle en `TEXT`, plutôt qu'un fichier sur disque ou un stockage objet. C'est volontaire pour ce projet :
+
+- Le Frontend redimensionne l'image à 256 px avant l'envoi (~20-60 Ko), et le DTO borne la valeur à 90 000 caractères : elle tient sous la limite JSON par défaut d'Express (100 Ko) et sous celle du Gateway (`MAX_PROXY_BODY_BYTES`, 1 Mo).
+- Aucun volume ni service de stockage supplémentaire à gérer dans `Infra`.
+- Le SVG est refusé (il peut contenir du script) : seules les images matricielles passent la validation.
+
+Si les avatars grossissent ou doivent être servis à beaucoup d'utilisateurs, migrer vers un stockage objet avec une URL dans cette colonne.
+
+### Profils publics et présence effective (`actif`)
+
+`GET /api/config-utilisateur/publiques?ids=…` expose à tout utilisateur authentifié un sous-ensemble **public** de la configuration d'autres utilisateurs : `alias`, `avatar`, `statutPresence`, `vuLaDerniereFois` et `actif`. Ne jamais y ajouter de préférence privée (thème, langue, notifications).
+
+- `statutPresence` est le statut **choisi** : il reste `enLigne` si l'app plante ou perd le réseau. `actif` est la présence **effective** : `enLigne` ET `vuLaDerniereFois` datant de moins de `DELAI_PRESENCE_ACTIVE_MS` (90 s). Le Frontend renvoie `PUT /presence` environ toutes les 20 s tant qu'il est connecté, ce qui sert de signe de vie.
+- `actif` est calculé ici, et non côté client, pour ne pas dépendre de l'horloge de chaque machine.
+- Aucune ligne n'est créée pour les identifiants inconnus : ils sont simplement absents de la réponse.
+- 100 identifiants maximum par requête ; `inclureAvatar=false` permet de rafraîchir souvent la présence sans retransférer les images.
 
 ## Base de données et Prisma
 
@@ -231,6 +252,10 @@ Ce dépôt est rédigé **entièrement en français** : identifiants (variables,
 - Valider les entrées avec les DTO et `class-validator`.
 - Retourner des erreurs HTTP NestJS explicites (`BadRequestException`, `UnauthorizedException`, etc.).
 - Ne pas laisser de code généré, mort ou de dépendances inutilisées.
+
+## Fichiers partagés (`src/partage/`)
+
+`src/partage/secrets-production.ts` (+ spec) est **identique à l'octet près** dans Room-Service et Message-Service : refus de démarrer en production avec les secrets de développement. Ne pas le modifier dans un seul dépôt : reporter le même changement partout, puis lancer `A26_5A6_01-Infra/scripts/verifier-fichiers-partages.sh`. Les secrets exigés par ce service se passent en paramètre depuis `main.ts`.
 
 ## Docker
 
