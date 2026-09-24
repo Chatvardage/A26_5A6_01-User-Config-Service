@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { ConfigUtilisateur, Prisma, StatutPresence } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MettreAJourConfigDto } from './dto/mettre-a-jour-config.dto';
@@ -16,6 +20,14 @@ export const DELAI_PRESENCE_ACTIVE_MS = 90_000;
 @Injectable()
 export class ConfigUtilisateurService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Compte supprimé (route interne). Vrai si une configuration existait. */
+  async supprimer(idUtilisateur: string): Promise<boolean> {
+    const { count } = await this.prisma.configUtilisateur.deleteMany({
+      where: { idUtilisateur },
+    });
+    return count > 0;
+  }
 
   async recupererOuCreer(
     idUtilisateur: string,
@@ -39,12 +51,16 @@ export class ConfigUtilisateurService {
         erreur instanceof Prisma.PrismaClientKnownRequestError &&
         erreur.code === CODE_CONTRAINTE_UNIQUE
       ) {
-        // findUniqueOrThrow suppose que la ligne créée par la requête
-        // concurrente existe encore : ce service ne supprime jamais de
-        // ConfigUtilisateur, cette hypothèse est donc sûre ici.
-        const config = await this.prisma.configUtilisateur.findUniqueOrThrow({
+        // La ligne de l'autre requête a pu être effacée entre-temps (compte
+        // supprimé, route interne) : conflit plutôt qu'une erreur 500.
+        const config = await this.prisma.configUtilisateur.findUnique({
           where: { idUtilisateur },
         });
+        if (!config) {
+          throw new ConflictException(
+            'Configuration supprimée pendant sa création',
+          );
+        }
         return this.versReponse(config);
       }
       throw erreur;

@@ -50,10 +50,13 @@ Le service est destiné à être appelé derrière `Serveur-API`.
 Le Gateway transmet l'identité déjà validée avec :
 
 ```http
+x-internal-token: <INTERNAL_SERVICE_TOKEN>
 x-user-id: <id utilisateur>
 ```
 
-Ne jamais considérer cet en-tête comme sûr si le service devient directement exposé à Internet. Dans l'architecture finale, le User-Config-Service doit rester un service interne.
+`InternalTokenGuard` (`src/internal/`) protège toutes les routes sauf `/api/health` : `x-user-id` n'est cru qu'avec le bon jeton interne. Ne jamais retirer ce garde d'une route qui lit `x-user-id`. Dans l'architecture finale, le User-Config-Service doit en plus rester un service interne.
+
+Authentification appelle `DELETE /api/internal/users/:userId` (même jeton) après la suppression d'un compte.
 
 Toutes les routes sont sous `/api`. Swagger est exposé sous `/docs`.
 
@@ -102,11 +105,9 @@ Ce choix est volontaire pour ce dépôt :
 
 Si le projet évolue vers un déploiement multi-replica (production réelle, Kubernetes, etc.), ce pattern devrait être revu **sur les trois services en même temps**, pas isolément sur celui-ci.
 
-### `recupererOuCreer` suppose qu'un `ConfigUtilisateur` n'est jamais supprimé
+### `recupererOuCreer` et la suppression d'un compte
 
-Après un conflit de création concurrente (`P2002`), `recupererOuCreer` relit la ligne avec `findUniqueOrThrow` en supposant qu'elle existe toujours. Ceci n'est sûr que parce qu'**aucun code de ce service ne supprime jamais de `ConfigUtilisateur`** (pas de route `DELETE`, pas de cascade).
-
-Si une fonctionnalité de suppression est ajoutée un jour, cette hypothèse doit être revalidée et cette méthode adaptée (par exemple avec un `findUnique` + gestion explicite du cas absent, plutôt que `findUniqueOrThrow`).
+Après un conflit de création concurrente (`P2002`), `recupererOuCreer` relit la ligne avec `findUnique`. Depuis la route interne de suppression de compte, cette ligne peut avoir disparu entre-temps : la méthode renvoie alors 409 plutôt qu'une erreur 500.
 
 ### Validation de `alias`/`theme`/`langue`/`modeNotification` : à la frontière (DTO) seulement, pas dans le service
 

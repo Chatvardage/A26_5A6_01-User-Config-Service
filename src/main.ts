@@ -6,8 +6,12 @@ import { verifierSecretsProduction } from './partage/secrets-production';
 
 export async function bootstrap(): Promise<void> {
   // Avant tout : pas de démarrage en production avec des secrets de dev.
-  // Pas de jeton interne : l'identité vient du Gateway (en-tête x-user-id).
-  verifierSecretsProduction({ urlsAvecMotDePasse: ['DATABASE_URL'] });
+  // L'identité vient du Gateway (en-tête x-user-id), cru seulement avec le
+  // jeton interne partagé (voir InternalTokenGuard).
+  verifierSecretsProduction({
+    jetonInterne: true,
+    urlsAvecMotDePasse: ['DATABASE_URL'],
+  });
   const port = Number(process.env.PORT || '3005');
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error(
@@ -16,6 +20,8 @@ export async function bootstrap(): Promise<void> {
   }
 
   const app = await NestFactory.create(AppModule);
+  // SIGTERM (docker stop) : fermeture propre (connexions Prisma).
+  app.enableShutdownHooks();
 
   app.setGlobalPrefix('api');
   // CORS_ORIGINS est une variable de config posée par la personne qui déploie

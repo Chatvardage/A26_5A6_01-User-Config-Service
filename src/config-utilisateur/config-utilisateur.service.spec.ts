@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigUtilisateurService } from './config-utilisateur.service';
@@ -29,8 +29,8 @@ describe('ConfigUtilisateurService', () => {
         upsert: jest.fn(),
         findUnique: jest.fn(),
         create: jest.fn(),
-        findUniqueOrThrow: jest.fn(),
         findMany: jest.fn(),
+        deleteMany: jest.fn(),
       },
     };
     service = new ConfigUtilisateurService(prisma as PrismaService);
@@ -69,22 +69,34 @@ describe('ConfigUtilisateurService', () => {
     );
   });
 
+  const conflit = () =>
+    new Prisma.PrismaClientKnownRequestError('conflit', {
+      code: 'P2002',
+      clientVersion: '6.16.0',
+    });
+
   it('recupererOuCreer relit la config si une requête concurrente l’a créée en premier', async () => {
-    prisma.configUtilisateur.findUnique.mockResolvedValue(null);
-    prisma.configUtilisateur.create.mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError('conflit', {
-        code: 'P2002',
-        clientVersion: '6.16.0',
-      }),
-    );
-    prisma.configUtilisateur.findUniqueOrThrow.mockResolvedValue(makeConfig());
+    prisma.configUtilisateur.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(makeConfig());
+    prisma.configUtilisateur.create.mockRejectedValue(conflit());
 
     const result = await service.recupererOuCreer('user-1');
 
-    expect(prisma.configUtilisateur.findUniqueOrThrow).toHaveBeenCalledWith({
+    expect(prisma.configUtilisateur.findUnique).toHaveBeenCalledTimes(2);
+    expect(prisma.configUtilisateur.findUnique).toHaveBeenLastCalledWith({
       where: { idUtilisateur: 'user-1' },
     });
     expect(result.idUtilisateur).toBe('user-1');
+  });
+
+  it('recupererOuCreer : 409 si la config concurrente a été supprimée entre-temps', async () => {
+    prisma.configUtilisateur.findUnique.mockResolvedValue(null);
+    prisma.configUtilisateur.create.mockRejectedValue(conflit());
+
+    await expect(service.recupererOuCreer('user-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   it('recupererOuCreer relance toute autre erreur de création', async () => {
@@ -95,7 +107,7 @@ describe('ConfigUtilisateurService', () => {
     await expect(service.recupererOuCreer('user-1')).rejects.toBe(
       erreurInattendue,
     );
-    expect(prisma.configUtilisateur.findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(prisma.configUtilisateur.findUnique).toHaveBeenCalledTimes(1);
   });
 
   it('mettreAJour refuse un DTO vide', async () => {
@@ -286,5 +298,15 @@ describe('ConfigUtilisateurService', () => {
         },
       ]);
     });
+  });
+
+  it('supprimer efface la configuration (vrai si elle existait)', async () => {
+    prisma.configUtilisateur.deleteMany.mockResolvedValueOnce({ count: 1 });
+    await expect(service.supprimer('parti')).resolves.toBe(true);
+    expect(prisma.configUtilisateur.deleteMany).toHaveBeenCalledWith({
+      where: { idUtilisateur: 'parti' },
+    });
+    prisma.configUtilisateur.deleteMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.supprimer('parti')).resolves.toBe(false);
   });
 });

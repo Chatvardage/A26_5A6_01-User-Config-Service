@@ -7,8 +7,13 @@ import {
   Put,
   Query,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  EN_TETE_JETON_INTERNE,
+  InternalTokenGuard,
+} from '../internal/internal-token.guard';
 import { ConfigUtilisateurService } from './config-utilisateur.service';
 import { DefinirPresenceDto } from './dto/definir-presence.dto';
 import { ListerProfilsPublicsDto } from './dto/lister-profils-publics.dto';
@@ -27,7 +32,14 @@ const LONGUEUR_MAX_ID_UTILISATEUR = 255;
   description:
     "Identifiant de l'utilisateur authentifié, transmis par l'API Gateway",
 })
+@ApiHeader({
+  name: EN_TETE_JETON_INTERNE,
+  required: true,
+  description: 'Secret partagé INTERNAL_SERVICE_TOKEN, posé par l’API Gateway',
+})
 @Controller('config-utilisateur')
+// x-user-id n'est cru que s'il vient du Gateway (voir InternalTokenGuard).
+@UseGuards(InternalTokenGuard)
 export class ConfigUtilisateurController {
   constructor(
     private readonly configUtilisateurService: ConfigUtilisateurService,

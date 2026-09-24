@@ -41,13 +41,21 @@ Le modèle retourné par l'API, utilisé par le client Electron comme source de 
 
 L'authentification est effectuée par le service **Authentification** et l'API Gateway.
 
-Le User-Config-Service reçoit l'identité déjà validée dans l'en-tête interne :
+Le User-Config-Service reçoit l'identité déjà validée dans l'en-tête interne,
+accompagnée du secret partagé entre microservices :
 
 ```http
+x-internal-token: <INTERNAL_SERVICE_TOKEN>
 x-user-id: <id utilisateur>
 ```
 
-En production, ce service ne doit pas être exposé directement à Internet. Cet en-tête doit être ajouté par l'API Gateway après validation du JWT.
+`x-user-id` n'est cru que si `x-internal-token` est exact (comparaison en
+temps constant) : sans lui, n'importe quel processus capable de joindre le
+port 3005 pouvait lire ou modifier la configuration de n'importe qui. Sans
+`INTERNAL_SERVICE_TOKEN` configuré, toutes les routes sauf `/api/health`
+répondent 503 (échec fermé). Les deux en-têtes sont posés par l'API Gateway
+après validation du JWT ; il retire ceux envoyés par le client. Ce service ne
+doit de toute façon pas être exposé directement à Internet.
 
 ## Routes
 
@@ -59,7 +67,8 @@ Toutes les routes sont préfixées par `/api`.
 | GET     | `/api/config-utilisateur/publiques?ids=a,b` | Profils publics d'autres utilisateurs (alias, avatar, présence effective `actif`) ; `inclureAvatar=false` pour omettre les images |
 | PATCH   | `/api/config-utilisateur`          | Met à jour l'alias, le thème, la langue, le mode de notification ou l'avatar                              |
 | PUT     | `/api/config-utilisateur/presence` | Définit le statut de présence de l'utilisateur connecté                                            |
-| GET     | `/api/health`                      | Vérifie le service et PostgreSQL                                                                   |
+| DELETE  | `/api/internal/users/:userId`      | Compte supprimé (appelée par Authentification) : efface sa configuration. Réponse `{ supprime }`    |
+| GET     | `/api/health`                      | Vérifie le service et PostgreSQL (seule route sans jeton interne)                                  |
 
 Pour effacer l'alias, envoyez une chaîne vide ou composée uniquement d'espaces :
 elle est persistée comme `null`.
@@ -128,6 +137,8 @@ Dans l'environnement final de l'équipe, ce service doit plutôt être référen
 ```env
 PORT=3005
 CORS_ORIGINS=http://localhost:5173
+# Même valeur que dans Serveur-API et Authentification.
+INTERNAL_SERVICE_TOKEN=chatvardage_internal_dev
 DATABASE_URL="postgresql://config_service:config_service_dev@localhost:5432/chatvardage_config?schema=public"
 ```
 
@@ -136,12 +147,13 @@ est absente, le service autorise uniquement `http://localhost:5173`.
 
 ### En production (`NODE_ENV=production`)
 
-Le service **refuse de démarrer** si le mot de passe de `DATABASE_URL` est l'un des mots de passe de développement de l'Infra (`config_service_dev`, `postgres`…) — voir `src/partage/secrets-production.ts`. Le message d'erreur liste tous les problèmes d'un coup ; en développement, les valeurs par défaut de l'Infra restent acceptées. Générer de vraies valeurs, par ex. `openssl rand -hex 32`.
+Le service **refuse de démarrer** si `INTERNAL_SERVICE_TOKEN` fait moins de 32 caractères, ou si le mot de passe de `DATABASE_URL` est l'un des mots de passe de développement de l'Infra (`config_service_dev`, `postgres`…) — voir `src/partage/secrets-production.ts`. Le message d'erreur liste tous les problèmes d'un coup ; en développement, les valeurs par défaut de l'Infra restent acceptées. Générer de vraies valeurs, par ex. `openssl rand -hex 32`.
 
 ## Exemple — récupérer sa configuration
 
 ```bash
 curl http://localhost:3005/api/config-utilisateur \
+  -H "x-internal-token: chatvardage_internal_dev" \
   -H "x-user-id: user-1"
 ```
 
@@ -165,6 +177,7 @@ Réponse (créée avec des valeurs par défaut au premier appel) :
 ```bash
 curl -X PATCH http://localhost:3005/api/config-utilisateur \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: chatvardage_internal_dev" \
   -H "x-user-id: user-1" \
   -d '{"theme":"clair","langue":"en"}'
 ```
@@ -174,6 +187,7 @@ curl -X PATCH http://localhost:3005/api/config-utilisateur \
 ```bash
 curl -X PUT http://localhost:3005/api/config-utilisateur/presence \
   -H "Content-Type: application/json" \
+  -H "x-internal-token: chatvardage_internal_dev" \
   -H "x-user-id: user-1" \
   -d '{"statut":"enLigne"}'
 ```
