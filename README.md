@@ -136,7 +136,7 @@ est absente, le service autorise uniquement `http://localhost:5173`.
 
 ### En production (`NODE_ENV=production`)
 
-Le service **refuse de démarrer** si le mot de passe de `DATABASE_URL` est une valeur de développement de l'Infra (`config_service_dev`…) — voir `src/common/secrets-production.ts`. Le message d'erreur liste tous les problèmes d'un coup ; en développement, les valeurs par défaut de l'Infra restent acceptées. Générer de vraies valeurs, par ex. `openssl rand -hex 32`.
+Le service **refuse de démarrer** si le mot de passe de `DATABASE_URL` est l'un des mots de passe de développement de l'Infra (`config_service_dev`, `postgres`…) — voir `src/partage/secrets-production.ts`. Le message d'erreur liste tous les problèmes d'un coup ; en développement, les valeurs par défaut de l'Infra restent acceptées. Générer de vraies valeurs, par ex. `openssl rand -hex 32`.
 
 ## Exemple — récupérer sa configuration
 

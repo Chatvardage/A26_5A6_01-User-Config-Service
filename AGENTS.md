@@ -252,6 +252,10 @@ Ce dépôt est rédigé **entièrement en français** : identifiants (variables,
 - Retourner des erreurs HTTP NestJS explicites (`BadRequestException`, `UnauthorizedException`, etc.).
 - Ne pas laisser de code généré, mort ou de dépendances inutilisées.
 
+## Fichiers partagés (`src/partage/`)
+
+`src/partage/secrets-production.ts` (+ spec) est **identique à l'octet près** dans Room-Service et Message-Service : refus de démarrer en production avec les secrets de développement. Ne pas le modifier dans un seul dépôt : reporter le même changement partout, puis lancer `A26_5A6_01-Infra/scripts/verifier-fichiers-partages.sh`. Les secrets exigés par ce service se passent en paramètre depuis `main.ts`.
+
 ## Docker
 
 Pour tester ce dépôt seul :
