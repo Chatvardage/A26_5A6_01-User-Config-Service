@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Theme {
+  sombre
+  clair
+}
+
+enum Langue {
+  fr
+  en
+}
+
+enum StatutPresence {
+  enLigne
+  horsLigne
+}
+
+enum ModeNotification {
+  systeme
+  discret
+  aucune
+}
+
+model ConfigUtilisateur {
+  idUtilisateur    String            @id
+  alias            String?
+  theme            Theme             @default(sombre)
+  langue           Langue            @default(fr)
+  statutPresence   StatutPresence    @default(horsLigne)
+  vuLaDerniereFois DateTime?
+  modeNotification ModeNotification  @default(systeme)
+  // Image de profil en data URL (PNG/JPEG/WebP en base64), déjà
+  // redimensionnée côté Frontend — voir MettreAJourConfigDto.avatar.
+  avatar           String?
+  creeLe           DateTime          @default(now())
+  misAJourLe       DateTime          @default(now()) @updatedAt
+}
