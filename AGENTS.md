@@ -4,7 +4,7 @@ Ce fichier contient les règles de travail pour tout agent IA ou développeur qu
 
 ## Contexte du projet
 
-Ce dépôt est le **User-Config-Service** de Chatvardage pour le Contrôle 2 du cours `420-5A6-ST – A26`.
+Ce dépôt est le **User-Config-Service** de Chatvardage.
 
 Architecture d'équipe :
 
@@ -100,7 +100,7 @@ Le `Dockerfile` lance `npx prisma migrate deploy && exec node dist/main` directe
 
 Ce choix est volontaire pour ce dépôt :
 
-- L'environnement cible du Contrôle 2 est **mono-replica** (`docker-compose.yml` d'Infra), donc le risque de concurrence entre plusieurs instances au démarrage ne s'applique pas.
+- L'environnement cible est **mono-replica** (`docker-compose.yml` d'Infra), donc le risque de concurrence entre plusieurs instances au démarrage ne s'applique pas.
 - Room-Service et Message-Service utilisent tous les deux exactement le même pattern. Changer uniquement User-Config-Service introduirait une incohérence de déploiement entre les trois services sans bénéfice réel dans ce contexte.
 
 Si le projet évolue vers un déploiement multi-replica (production réelle, Kubernetes, etc.), ce pattern devrait être revu **sur les trois services en même temps**, pas isolément sur celui-ci.
@@ -316,3 +316,7 @@ Dans la description de PR, résumer les changements, indiquer les tests exécut�
 - Le seuil Jest global est fixé à 100 % : toute baisse fait échouer la commande.
 - Toute nouvelle branche de logique doit être accompagnée de tests couvrant succès et erreurs.
 - Avant une PR : `npm run lint`, `npm test`, `npm run test:cov`, `npm run test:e2e`, `npm run build`.
+
+## Documentation centrale
+
+Infra est la référence du démarrage complet, des architectures, contrats et scénarios de validation. Le README local décrit le dépôt et ses commandes; les guides détaillés sont dans `A26_5A6_01-Infra/docs/`. Toute modification de contrat doit mettre à jour la référence centrale et ses liens.
