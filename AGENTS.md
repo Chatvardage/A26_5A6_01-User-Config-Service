@@ -96,7 +96,7 @@ Ne pas « corriger » ce comportement sans revalider l'intention produit avec l'
 
 ### Migration Prisma exécutée dans le `CMD` du conteneur (pas d'init container séparé)
 
-Le `Dockerfile` lance `node node_modules/prisma/build/index.js migrate deploy && exec node dist/main` directement dans le `CMD` du service applicatif. npm/npx sont retirés de l'image finale; le CLI Prisma reste installé comme dépendance de production, dans la version figée par le lockfile. Les migrations ne sont pas déléguées à un init container ou un job séparé (pattern recommandé en production multi-replica, pour éviter que plusieurs instances tentent d'appliquer les mêmes migrations en parallèle au démarrage).
+Le `Dockerfile` lance `./node_modules/.bin/prisma migrate deploy && exec node dist/main` directement dans le `CMD` du service applicatif. npm/npx sont retirés de l'image finale; le CLI Prisma reste installé comme dépendance de production, dans la version figée par le lockfile. Les migrations ne sont pas déléguées à un init container ou un job séparé (pattern recommandé en production multi-replica, pour éviter que plusieurs instances tentent d'appliquer les mêmes migrations en parallèle au démarrage).
 
 Ce choix est volontaire pour ce dépôt :
 
@@ -186,7 +186,7 @@ Ne jamais modifier une migration déjà appliquée pour masquer un changement. C
 Dans l'image Docker finale (sans npm/npx), utiliser :
 
 ```bash
-node node_modules/prisma/build/index.js migrate deploy
+./node_modules/.bin/prisma migrate deploy
 ```
 
 En développement/build, `npx prisma migrate deploy` reste disponible.
@@ -336,3 +336,10 @@ Dans la description de PR, résumer les changements, indiquer les tests exécut�
 ## Documentation centrale
 
 Infra est la référence du démarrage complet, des architectures, contrats et scénarios de validation. Le README local décrit le dépôt et ses commandes; les guides détaillés sont dans `A26_5A6_01-Infra/docs/`. Toute modification de contrat doit mettre à jour la référence centrale et ses liens.
+
+### Reprise sécurité — review 6078612422
+
+- Le démarrage invoque le point d’entrée public node_modules/.bin/prisma avec vérification au build, et actualise les paquets Alpine.
+- Les champs libc du verrou décrivent des binaires optionnels de compilation; la construction réelle vérifie la compatibilité. Les réécrire manuellement n’améliore pas la sécurité du service.
+- L’historique des décisions AGENTS est conservé à la demande explicite utilisateur. La date du bilan README indique quand l’audit a été exécuté; la retirer ferait perdre cette information.
+- Les avis favorables sur l’override YAML et le retrait npm/npx ne demandent aucune autre modification.
