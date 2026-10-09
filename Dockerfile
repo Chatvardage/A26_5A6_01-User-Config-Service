@@ -22,6 +22,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Le CLI Prisma installé suffit aux migrations : aucun npm/npx au runtime.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 USER appuser
 
 EXPOSE 3005
@@ -29,4 +31,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3005/api/health || exit 1
 # Migration au démarrage acceptée en mono-replica (voir AGENTS.md) ; à revoir
 # (init container / job dédié) si ce service passe un jour en multi-replica.
-CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/main"]
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && exec node dist/main"]
