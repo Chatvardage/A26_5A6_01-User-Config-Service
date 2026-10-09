@@ -25,8 +25,8 @@ COPY --from=build /app/prisma ./prisma
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 # Le CLI Prisma installé suffit aux migrations : aucun npm/npx au runtime.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
-RUN test -x node_modules/.bin/prisma
 USER appuser
+RUN test -x node_modules/.bin/prisma
 
 EXPOSE 3005
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

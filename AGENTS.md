@@ -343,3 +343,12 @@ Infra est la référence du démarrage complet, des architectures, contrats et s
 - Les champs libc du verrou décrivent des binaires optionnels de compilation; la construction réelle vérifie la compatibilité. Les réécrire manuellement n’améliore pas la sécurité du service.
 - L’historique des décisions AGENTS est conservé à la demande explicite utilisateur. La date du bilan README indique quand l’audit a été exécuté; la retirer ferait perdre cette information.
 - Les avis favorables sur l’override YAML et le retrait npm/npx ne demandent aucune autre modification.
+
+### Review 6084451446 — actualisation des images
+
+- La vérification du CLI est exécutée sous appuser, comme les migrations, afin de faire échouer le build si les droits runtime ne conviennent pas.
+- apk upgrade est conservé volontairement : les paquets système sont actualisés lors de chaque reconstruction effective; le résultat dépend de la date, tandis que les dépendances npm sont verrouillées. Une image de diffusion doit être identifiée par son digest et rescannée. Épingler des paquets vulnérables pour stabiliser des builds n’est pas retenu.
+- Les RUN séparés restent explicites entre suppression privilégiée et contrôle sans privilège; les fusionner sous root supprimerait cette vérification.
+- L’override ^4.3.2 reste borné à la même majeure et npm ci utilise la version exacte du lock. Une régénération est déjà suivie de l’audit et des tests.
+- Les métadonnées libc optionnelles restent générées par npm : image Alpine construite et migrations réellement exécutées sous appuser. Toute nouvelle dépendance native impose de refaire ces validations.
+- Les décisions AGENTS suivent la demande explicite utilisateur; la date README conserve le contexte du bilan de sécurité. Aucun retrait pour une seule préférence éditoriale.
