@@ -96,7 +96,7 @@ Ne pas « corriger » ce comportement sans revalider l'intention produit avec l'
 
 ### Migration Prisma exécutée dans le `CMD` du conteneur (pas d'init container séparé)
 
-Le `Dockerfile` lance `npx prisma migrate deploy && exec node dist/main` directement dans le `CMD` du service applicatif, plutôt que de déléguer les migrations à un init container ou un job séparé (pattern recommandé en production multi-replica, pour éviter que plusieurs instances tentent d'appliquer les mêmes migrations en parallèle au démarrage).
+Le `Dockerfile` lance `node node_modules/prisma/build/index.js migrate deploy && exec node dist/main` directement dans le `CMD` du service applicatif. npm/npx sont retirés de l'image finale; le CLI Prisma reste installé comme dépendance de production, dans la version figée par le lockfile. Les migrations ne sont pas déléguées à un init container ou un job séparé (pattern recommandé en production multi-replica, pour éviter que plusieurs instances tentent d'appliquer les mêmes migrations en parallèle au démarrage).
 
 Ce choix est volontaire pour ce dépôt :
 
@@ -183,11 +183,23 @@ npx prisma migrate dev --name <nom_de_la_migration>
 
 Ne jamais modifier une migration déjà appliquée pour masquer un changement. Créer une nouvelle migration.
 
-Dans Docker/déploiement, utiliser :
+Dans l'image Docker finale (sans npm/npx), utiliser :
 
 ```bash
-npx prisma migrate deploy
+node node_modules/prisma/build/index.js migrate deploy
 ```
+
+En développement/build, `npx prisma migrate deploy` reste disponible.
+
+### Revue PR #7 — 9 octobre 2026
+
+- Les instructions Docker sont alignées sur la commande réellement exécutée et validée.
+- Invocation directe conservée : `build/index.js` est le point d'entrée `bin` du paquet Prisma installé, dont la version est figée. Le chemin est vérifié par le build et les migrations réelles; passer par le lien `.bin` n'améliore pas le comportement actuel et une montée majeure exige de toute façon de revalider l'image.
+- Plage `^4.3.2` conservée : `npm ci` utilise la version exacte du lockfile et ne résout pas une nouvelle version. Régénérer volontairement ce fichier reste soumis aux tests et à l'audit.
+- Titre daté conservé pour identifier le renforcement du 9 octobre. Les limites et conditions de retrait sont explicites; aucun changement de fonctionnement n'est nécessaire.
+- Métadonnées libc des dépendances de développement : aucune dépendance native de production concernée; installation, tests et image déjà validés. Pas de réécriture manuelle du lockfile.
+
+Validation de cette review : documentation uniquement; audit high, lint, build, 83 tests unitaires à couverture 100 % et 24 tests E2E passent.
 
 ## Commandes obligatoires avant de terminer une modification
 
