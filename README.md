@@ -53,3 +53,7 @@ Les migrations appartiennent à ce dépôt (`prisma/` lorsqu’applicable); Infr
 - [API et événements](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/main/docs/api/README.md)
 - [Scénario de validation](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/main/docs/validation.md)
 - [Versions et publication](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/main/docs/versions.md)
+
+## Renforcement sécurité — 9 octobre 2026
+
+Les dépendances compatibles sont mises à jour; l'override YAML concerne seulement `@istanbuljs/load-nyc-config`. npm/npx sont retirés de l'image finale : la migration utilise le CLI Prisma déjà installé (`./node_modules/.bin/prisma migrate deploy`). L'identité reste transmise par le Gateway avec le jeton interne obligatoire. Voir le rapport global dans [rapport initial Infra](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/audit-securite-2026-10-09.md).

@@ -96,7 +96,7 @@ Ne pas « corriger » ce comportement sans revalider l'intention produit avec l'
 
 ### Migration Prisma exécutée dans le `CMD` du conteneur (pas d'init container séparé)
 
-Le `Dockerfile` lance `npx prisma migrate deploy && exec node dist/main` directement dans le `CMD` du service applicatif, plutôt que de déléguer les migrations à un init container ou un job séparé (pattern recommandé en production multi-replica, pour éviter que plusieurs instances tentent d'appliquer les mêmes migrations en parallèle au démarrage).
+Le `Dockerfile` lance `./node_modules/.bin/prisma migrate deploy && exec node dist/main` directement dans le `CMD` du service applicatif. npm/npx sont retirés de l'image finale; le CLI Prisma reste installé comme dépendance de production, dans la version figée par le lockfile. Les migrations ne sont pas déléguées à un init container ou un job séparé (pattern recommandé en production multi-replica, pour éviter que plusieurs instances tentent d'appliquer les mêmes migrations en parallèle au démarrage).
 
 Ce choix est volontaire pour ce dépôt :
 
@@ -183,11 +183,23 @@ npx prisma migrate dev --name <nom_de_la_migration>
 
 Ne jamais modifier une migration déjà appliquée pour masquer un changement. Créer une nouvelle migration.
 
-Dans Docker/déploiement, utiliser :
+Dans l'image Docker finale (sans npm/npx), utiliser :
 
 ```bash
-npx prisma migrate deploy
+./node_modules/.bin/prisma migrate deploy
 ```
+
+En développement/build, `npx prisma migrate deploy` reste disponible.
+
+### Revue PR #7 — 9 octobre 2026
+
+- Les instructions Docker sont alignées sur la commande réellement exécutée et validée.
+- Invocation directe conservée : `build/index.js` est le point d'entrée `bin` du paquet Prisma installé, dont la version est figée. Le chemin est vérifié par le build et les migrations réelles; passer par le lien `.bin` n'améliore pas le comportement actuel et une montée majeure exige de toute façon de revalider l'image.
+- Plage `^4.3.2` conservée : `npm ci` utilise la version exacte du lockfile et ne résout pas une nouvelle version. Régénérer volontairement ce fichier reste soumis aux tests et à l'audit.
+- Titre daté conservé pour identifier le renforcement du 9 octobre. Les limites et conditions de retrait sont explicites; aucun changement de fonctionnement n'est nécessaire.
+- Métadonnées libc des dépendances de développement : aucune dépendance native de production concernée; installation, tests et image déjà validés. Pas de réécriture manuelle du lockfile.
+
+Validation de cette review : documentation uniquement; audit high, lint, build, 83 tests unitaires à couverture 100 % et 24 tests E2E passent.
 
 ## Commandes obligatoires avant de terminer une modification
 
@@ -324,3 +336,19 @@ Dans la description de PR, résumer les changements, indiquer les tests exécut�
 ## Documentation centrale
 
 Infra est la référence du démarrage complet, des architectures, contrats et scénarios de validation. Le README local décrit le dépôt et ses commandes; les guides détaillés sont dans `A26_5A6_01-Infra/docs/`. Toute modification de contrat doit mettre à jour la référence centrale et ses liens.
+
+### Reprise sécurité — review 6078612422
+
+- Le démarrage invoque le point d’entrée public node_modules/.bin/prisma avec vérification au build, et actualise les paquets Alpine.
+- Les champs libc du verrou décrivent des binaires optionnels de compilation; la construction réelle vérifie la compatibilité. Les réécrire manuellement n’améliore pas la sécurité du service.
+- L’historique des décisions AGENTS est conservé à la demande explicite utilisateur. La date du bilan README indique quand l’audit a été exécuté; la retirer ferait perdre cette information.
+- Les avis favorables sur l’override YAML et le retrait npm/npx ne demandent aucune autre modification.
+
+### Review 6084451446 — actualisation des images
+
+- La vérification du CLI est exécutée sous appuser, comme les migrations, afin de faire échouer le build si les droits runtime ne conviennent pas.
+- apk upgrade est conservé volontairement : les paquets système sont actualisés lors de chaque reconstruction effective; le résultat dépend de la date, tandis que les dépendances npm sont verrouillées. Une image de diffusion doit être identifiée par son digest et rescannée. Épingler des paquets vulnérables pour stabiliser des builds n’est pas retenu.
+- Les RUN séparés restent explicites entre suppression privilégiée et contrôle sans privilège; les fusionner sous root supprimerait cette vérification.
+- L’override ^4.3.2 reste borné à la même majeure et npm ci utilise la version exacte du lock. Une régénération est déjà suivie de l’audit et des tests.
+- Les métadonnées libc optionnelles restent générées par npm : image Alpine construite et migrations réellement exécutées sous appuser. Toute nouvelle dépendance native impose de refaire ces validations.
+- Les décisions AGENTS suivent la demande explicite utilisateur; la date README conserve le contexte du bilan de sécurité. Aucun retrait pour une seule préférence éditoriale.
